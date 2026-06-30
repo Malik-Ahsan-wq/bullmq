@@ -1,9 +1,9 @@
-const { NextResponse } = require("next/server");
-const bcrypt = require("bcryptjs");
-const connection = require("../../../../lib/redis");
-const { generateToken } = require("../../../../lib/auth");
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import connection from "../../../../lib/redis";
+import { generateToken } from "../../../../lib/auth";
 
-async function POST(request) {
+export async function POST(request) {
   try {
     const { name, email, password } = await request.json();
 
@@ -14,7 +14,6 @@ async function POST(request) {
       );
     }
 
-    // Check if user already exists
     const existingUser = await connection.get(`user:email:${email}`);
     if (existingUser) {
       return NextResponse.json(
@@ -23,13 +22,10 @@ async function POST(request) {
       );
     }
 
-    // Generate user ID
     const userId = await connection.incr("user:id_counter");
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Store user in Redis
     await connection.hset(`user:${userId}`, {
       id: userId.toString(),
       name,
@@ -37,10 +33,8 @@ async function POST(request) {
       password: hashedPassword,
     });
 
-    // Store email -> ID mapping for login lookup
     await connection.set(`user:email:${email}`, userId.toString());
 
-    // Generate token
     const token = generateToken({ id: userId, email });
 
     return NextResponse.json({
@@ -56,5 +50,3 @@ async function POST(request) {
     );
   }
 }
-
-module.exports = { POST };

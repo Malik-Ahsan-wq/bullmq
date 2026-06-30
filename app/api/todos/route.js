@@ -1,6 +1,6 @@
-const { NextResponse } = require("next/server");
-const connection = require("../../../lib/redis");
-const { verifyToken } = require("../../../lib/auth");
+import { NextResponse } from "next/server";
+import connection from "../../../lib/redis";
+import { verifyToken } from "../../../lib/auth";
 
 function getUserFromRequest(request) {
   const authHeader = request.headers.get("authorization");
@@ -11,17 +11,15 @@ function getUserFromRequest(request) {
   return verifyToken(token);
 }
 
-async function GET(request) {
+export async function GET(request) {
   try {
     const user = getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get all todo IDs for this user
     const todoIds = await connection.smembers(`todos:${user.id}`);
 
-    // Get each todo's data
     const todos = [];
     for (const id of todoIds) {
       const todo = await connection.hgetall(`todo:${user.id}:${id}`);
@@ -35,7 +33,6 @@ async function GET(request) {
       }
     }
 
-    // Sort by newest first
     todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return NextResponse.json({ todos });
@@ -48,7 +45,7 @@ async function GET(request) {
   }
 }
 
-async function POST(request) {
+export async function POST(request) {
   try {
     const user = getUserFromRequest(request);
     if (!user) {
@@ -63,7 +60,6 @@ async function POST(request) {
       );
     }
 
-    // Generate todo ID
     const todoId = await connection.incr(`todos:id_counter:${user.id}`);
 
     const todo = {
@@ -73,10 +69,8 @@ async function POST(request) {
       createdAt: new Date().toISOString(),
     };
 
-    // Save todo
     await connection.hset(`todo:${user.id}:${todoId}`, todo);
 
-    // Add todo ID to user's todo set
     await connection.sadd(`todos:${user.id}`, todoId.toString());
 
     return NextResponse.json({
@@ -92,7 +86,7 @@ async function POST(request) {
   }
 }
 
-async function PUT(request) {
+export async function PUT(request) {
   try {
     const user = getUserFromRequest(request);
     if (!user) {
@@ -107,13 +101,11 @@ async function PUT(request) {
       );
     }
 
-    // Check if todo exists
     const exists = await connection.exists(`todo:${user.id}:${id}`);
     if (!exists) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    // Update fields
     const updates = {};
     if (text !== undefined) updates.text = text;
     if (done !== undefined) updates.done = done.toString();
@@ -140,7 +132,7 @@ async function PUT(request) {
   }
 }
 
-async function DELETE(request) {
+export async function DELETE(request) {
   try {
     const user = getUserFromRequest(request);
     if (!user) {
@@ -156,13 +148,11 @@ async function DELETE(request) {
       );
     }
 
-    // Check if todo exists
     const exists = await connection.exists(`todo:${user.id}:${id}`);
     if (!exists) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    // Delete todo
     await connection.del(`todo:${user.id}:${id}`);
     await connection.srem(`todos:${user.id}`, id);
 
@@ -175,5 +165,3 @@ async function DELETE(request) {
     );
   }
 }
-
-module.exports = { GET, POST, PUT, DELETE };

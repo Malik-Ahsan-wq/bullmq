@@ -1,6 +1,6 @@
-const { NextResponse } = require("next/server");
-const emailQueue = require("../../../lib/queue");
-const { verifyToken } = require("../../../lib/auth");
+import { NextResponse } from "next/server";
+import emailQueue from "../../../lib/queue";
+import { verifyToken } from "../../../lib/auth";
 
 function getUserFromRequest(request) {
   const authHeader = request.headers.get("authorization");
@@ -11,7 +11,7 @@ function getUserFromRequest(request) {
   return verifyToken(token);
 }
 
-async function POST(request) {
+export async function POST(request) {
   try {
     const user = getUserFromRequest(request);
     if (!user) {
@@ -26,7 +26,6 @@ async function POST(request) {
       );
     }
 
-    // Add job to email queue
     const job = await emailQueue.add(
       "sendEmail",
       {
@@ -56,5 +55,3 @@ async function POST(request) {
     );
   }
 }
-
-module.exports = { POST };

@@ -1,9 +1,9 @@
-const { NextResponse } = require("next/server");
-const bcrypt = require("bcryptjs");
-const connection = require("../../../../lib/redis");
-const { generateToken } = require("../../../../lib/auth");
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import connection from "../../../../lib/redis";
+import { generateToken } from "../../../../lib/auth";
 
-async function POST(request) {
+export async function POST(request) {
   try {
     const { email, password } = await request.json();
 
@@ -14,7 +14,6 @@ async function POST(request) {
       );
     }
 
-    // Find user by email
     const userId = await connection.get(`user:email:${email}`);
     if (!userId) {
       return NextResponse.json(
@@ -23,7 +22,6 @@ async function POST(request) {
       );
     }
 
-    // Get user data
     const user = await connection.hgetall(`user:${userId}`);
     if (!user || !user.password) {
       return NextResponse.json(
@@ -32,7 +30,6 @@ async function POST(request) {
       );
     }
 
-    // Compare password
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return NextResponse.json(
@@ -41,7 +38,6 @@ async function POST(request) {
       );
     }
 
-    // Generate token
     const token = generateToken({ id: parseInt(userId), email: user.email });
 
     return NextResponse.json({
@@ -57,5 +53,3 @@ async function POST(request) {
     );
   }
 }
-
-module.exports = { POST };
