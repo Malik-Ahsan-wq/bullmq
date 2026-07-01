@@ -339,3 +339,108 @@ body {
   text-align: center;
   padding: 10px 0;
 }
+
+.project-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.project-selector label {
+  font-weight: bold;
+  color: #555;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.project-selector select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+.add-todo-section {
+  margin-bottom: 20px;
+}
+
+.add-todo select {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.todo-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.assigned-badge {
+  font-size: 11px;
+  color: #0070f3;
+  background: #e6f3ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.unassigned-badge {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.created-by {
+  font-size: 11px;
+  color: #888;
+}
+
+.reassign-select {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 11px;
+  background: white;
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.todo-item.done {
+  background: #f0f0f0;
+}
+
+.todo-item.done .todo-text {
+  text-decoration: line-through;
+  color: #999;
+}
