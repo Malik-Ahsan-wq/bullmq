@@ -45,7 +45,10 @@ export default function AuthPage() {
 
   return (
     <div className="auth-container">
-      <h1>{isLogin ? "Login" : "Register"}</h1>
+      <h1>{isLogin ? "Welcome back" : "Create account"}</h1>
+      <p className="auth-subtitle">
+        {isLogin ? "Sign in to your task manager" : "Get started with task management"}
+      </p>
 
       {error && <div className="error">{error}</div>}
 

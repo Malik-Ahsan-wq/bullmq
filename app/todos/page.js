@@ -386,7 +386,9 @@ export default function TodosPage() {
   if (loading) {
     return (
       <div className="container">
-        <div className="loading">Loading...</div>
+        <div className="todo-app">
+          <div className="loading">Loading your workspace...</div>
+        </div>
       </div>
     );
   }
@@ -474,10 +476,13 @@ export default function TodosPage() {
             )}
 
             {todos.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#999", padding: "20px" }}>
-                No tasks yet.
-                {userRole !== "viewer" && " Add one above!"}
-              </p>
+              <div className="empty-state">
+                <div className="empty-state-icon">&#128203;</div>
+                <p className="empty-state-text">
+                  No tasks yet.
+                  {userRole !== "viewer" && " Create your first task above!"}
+                </p>
+              </div>
             ) : (
               <ul className="todo-list">
                 {todos.map((todo) => (

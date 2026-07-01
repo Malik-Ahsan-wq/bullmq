@@ -83,14 +83,14 @@ export default function InvitePage() {
   if (accepted) {
     return (
       <div className="auth-container">
-        <h1 style={{ color: "#28a745" }}>Invite Accepted!</h1>
-        <p style={{ textAlign: "center", color: "#666", margin: "20px 0" }}>
-          You have successfully joined <strong>{project?.name}</strong>.
+        <div className="invite-success-icon">&#10003;</div>
+        <h1 style={{ color: "#059669", textAlign: "center" }}>Invite Accepted!</h1>
+        <p style={{ textAlign: "center", color: "#6b7280", margin: "16px 0 28px", fontSize: "14px", lineHeight: "1.6" }}>
+          You have successfully joined <strong style={{ color: "#1f2937" }}>{project?.name}</strong>.
         </p>
         <button
           className="btn btn-primary"
           onClick={() => router.push("/todos")}
-          style={{ width: "100%" }}
         >
           Go to Dashboard
         </button>
@@ -101,32 +101,22 @@ export default function InvitePage() {
   return (
     <div className="auth-container">
       <h1>Project Invitation</h1>
+      <p className="auth-subtitle">You've been invited to collaborate</p>
 
       {error && <div className="error">{error}</div>}
 
       {project && (
-        <div style={{ marginBottom: "20px" }}>
-          <p style={{ color: "#666", margin: "10px 0" }}>
-            <strong style={{ color: "#0070f3" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <p style={{ color: "#6b7280", margin: "0 0 12px", fontSize: "14px" }}>
+            <strong style={{ color: "#4f46e5" }}>
               {inviter?.name || "Someone"}
             </strong>{" "}
             has invited you to join:
           </p>
-          <div
-            style={{
-              background: "#f9f9f9",
-              padding: "15px",
-              borderRadius: "8px",
-              border: "1px solid #eee",
-            }}
-          >
-            <h2 style={{ margin: "0 0 5px 0", fontSize: "18px" }}>
-              {project.name}
-            </h2>
+          <div className="invite-project-card">
+            <h2>{project.name}</h2>
             {project.description && (
-              <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                {project.description}
-              </p>
+              <p>{project.description}</p>
             )}
           </div>
         </div>
@@ -137,7 +127,6 @@ export default function InvitePage() {
           className="btn btn-primary"
           onClick={handleAccept}
           disabled={accepting}
-          style={{ width: "100%" }}
         >
           {accepting ? "Accepting..." : "Accept Invitation"}
         </button>
