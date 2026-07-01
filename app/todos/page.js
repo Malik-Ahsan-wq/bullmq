@@ -13,6 +13,14 @@ export default function TodosPage() {
   const [emailStatus, setEmailStatus] = useState("");
   const router = useRouter();
 
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState("");
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [projectStatus, setProjectStatus] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteStatus, setInviteStatus] = useState("");
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
@@ -24,6 +32,7 @@ export default function TodosPage() {
 
     setUser(JSON.parse(userData));
     fetchTodos(token);
+    fetchProjects(token);
   }, [router]);
 
   const fetchTodos = async (token) => {
@@ -102,6 +111,84 @@ export default function TodosPage() {
       }
     } catch (err) {
       console.error("Failed to delete todo:", err);
+    }
+  };
+
+  const fetchProjects = async (token) => {
+    try {
+      const res = await fetch("/api/projects", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setProjects(data.projects);
+        if (data.projects.length > 0 && !selectedProject) {
+          setSelectedProject(data.projects[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch projects:", err);
+    }
+  };
+
+  const createProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    setProjectStatus("Creating...");
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newProjectName,
+          description: newProjectDesc,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setProjectStatus(`Project "${data.project.name}" created!`);
+        setNewProjectName("");
+        setNewProjectDesc("");
+        fetchProjects(token);
+      } else {
+        setProjectStatus(data.error || "Failed to create project");
+      }
+    } catch (err) {
+      setProjectStatus("Network error");
+    }
+  };
+
+  const sendInvite = async (e) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !selectedProject) return;
+
+    setInviteStatus("Sending invite...");
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`/api/projects/${selectedProject}/invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email: inviteEmail }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setInviteStatus(`Invite sent to ${inviteEmail}! Job ID: ${data.jobId}`);
+        setInviteEmail("");
+      } else {
+        setInviteStatus(data.error || "Failed to send invite");
+      }
+    } catch (err) {
+      setInviteStatus("Network error");
     }
   };
 
@@ -224,6 +311,74 @@ export default function TodosPage() {
             />
             <button type="submit">Send Email</button>
           </form>
+        </div>
+
+        <div className="invite-section">
+          <h2>Projects & Invites</h2>
+
+          <div className="invite-panels">
+            <div className="invite-panel">
+              <h3>Create Project</h3>
+              {projectStatus && (
+                <div className={projectStatus.includes("created") ? "success-msg" : "error"}>
+                  {projectStatus}
+                </div>
+              )}
+              <form className="invite-form" onSubmit={createProject}>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Project name"
+                  required
+                />
+                <input
+                  type="text"
+                  value={newProjectDesc}
+                  onChange={(e) => setNewProjectDesc(e.target.value)}
+                  placeholder="Description (optional)"
+                />
+                <button type="submit" className="btn-create-project">
+                  Create Project
+                </button>
+              </form>
+            </div>
+
+            <div className="invite-panel">
+              <h3>Invite to Project</h3>
+              {inviteStatus && (
+                <div className={inviteStatus.includes("sent") ? "success-msg" : "error"}>
+                  {inviteStatus}
+                </div>
+              )}
+              {projects.length === 0 ? (
+                <p className="no-projects">No projects yet. Create one first.</p>
+              ) : (
+                <form className="invite-form" onSubmit={sendInvite}>
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Email to invite"
+                    required
+                  />
+                  <button type="submit" className="btn-send-invite">
+                    Send Invite
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
