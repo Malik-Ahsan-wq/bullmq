@@ -112,7 +112,7 @@ export async function GET(request, { params }) {
       createdBy: t.createdBy
         ? { id: t.createdBy._id, name: t.createdBy.name }
         : null,
-      deadline: t.deadline ? t.deadline.toISOString() : null,
+      deadline: t.deadline ? new Date(t.deadline).toISOString() : null,
       userRole: role,
       canEdit: canEditTask(role, t, access.user._id),
       canDelete: canDeleteTask(role, t, access.user._id),
