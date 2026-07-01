@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "worker": "node workers/email.worker.js"
+    "worker": "node workers/email.worker.js",
+    "deadline-worker": "node workers/deadline.worker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

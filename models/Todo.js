@@ -40,6 +40,10 @@ const TodoSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    deadlineJobId: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

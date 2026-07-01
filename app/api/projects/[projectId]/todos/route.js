@@ -4,6 +4,7 @@ import UserModel from "../../../../../models/User";
 import ProjectModel from "../../../../../models/Project";
 import ProjectMemberModel from "../../../../../models/ProjectMember";
 import TodoModel from "../../../../../models/Todo";
+import deadlineQueue from "../../../../../lib/deadlineQueue";
 
 async function verifyProjectAccess(projectId, userEmail) {
   const User = await UserModel();
@@ -52,6 +53,58 @@ function canAssignTask(role) {
 
 function canReassignTask(role) {
   return ["owner", "co-owner"].includes(role);
+}
+
+/**
+ * Schedules a delayed BullMQ job to send a deadline reminder email
+ * when the deadline arrives. Returns the job ID for storage in the todo.
+ */
+async function scheduleDeadlineReminder(todo, project, assigneeEmail, creatorEmail) {
+  const deadlineTime = new Date(todo.deadline).getTime();
+  const delay = Math.max(0, deadlineTime - Date.now());
+
+  const recipientEmail = assigneeEmail || creatorEmail;
+  if (!recipientEmail) {
+    console.warn(`Cannot schedule deadline reminder: no recipient email for todo ${todo._id}`);
+    return null;
+  }
+
+  const job = await deadlineQueue.add(
+    "sendDeadlineReminder",
+    {
+      todoId: todo._id.toString(),
+      email: recipientEmail,
+      taskName: todo.text,
+      projectName: project ? project.name : null,
+      assigneeName: todo.assignedToName,
+      creatorName: project ? project.name : null, // resolved below
+      deadline: todo.deadline.toISOString(),
+    },
+    {
+      delay,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 5000 },
+      removeOnComplete: true,
+    }
+  );
+
+  console.log(`Scheduled deadline reminder for todo ${todo._id}, job ${job.id}, delay ${delay}ms`);
+  return job.id;
+}
+
+/**
+ * Removes a previously scheduled deadline reminder job from the queue.
+ * Silently ignores errors if the job has already been processed or removed.
+ */
+async function removeDeadlineReminder(jobId) {
+  if (!jobId) return;
+  try {
+    await deadlineQueue.remove(jobId);
+    console.log(`Removed deadline reminder job ${jobId}`);
+  } catch (err) {
+    // Job may have already been processed or removed — this is fine
+    console.log(`Could not remove job ${jobId} (may have already been processed): ${err.message}`);
+  }
 }
 
 export async function GET(request, { params }) {
@@ -207,6 +260,21 @@ export async function POST(request, { params }) {
       deadline: parsedDeadline,
     });
 
+    // Schedule a deadline reminder job if a deadline was provided
+    let deadlineJobId = null;
+    if (parsedDeadline) {
+      const assigneeEmail = assignedToUser ? assignedToUser.email : null;
+      deadlineJobId = await scheduleDeadlineReminder(
+        todo,
+        access.project,
+        assigneeEmail,
+        authUser.email
+      );
+      if (deadlineJobId) {
+        await Todo.updateOne({ _id: todo._id }, { deadlineJobId });
+      }
+    }
+
     return NextResponse.json({
       message: "Todo created",
       todo: {
@@ -280,9 +348,15 @@ export async function PUT(request, { params }) {
     if (text !== undefined) todo.text = text;
     if (done !== undefined) todo.done = done;
 
+    // Track whether the deadline changed so we can manage the reminder job
+    const oldDeadline = todo.deadline;
+    const oldJobId = todo.deadlineJobId;
+    let deadlineChanged = false;
+
     if (deadline !== undefined) {
       if (deadline === null) {
         todo.deadline = null;
+        deadlineChanged = oldDeadline !== null;
       } else {
         const d = new Date(deadline);
         if (isNaN(d.getTime())) {
@@ -291,6 +365,7 @@ export async function PUT(request, { params }) {
             { status: 400 }
           );
         }
+        deadlineChanged = !oldDeadline || d.getTime() !== new Date(oldDeadline).getTime();
         todo.deadline = d;
       }
     }
@@ -321,6 +396,40 @@ export async function PUT(request, { params }) {
     }
 
     await todo.save();
+
+    // --- Deadline reminder job management ---
+
+    // 1. If task is now completed, remove any existing reminder
+    if (done === true && oldJobId) {
+      await removeDeadlineReminder(oldJobId);
+      todo.deadlineJobId = null;
+    }
+
+    // 2. If deadline changed, remove old job and schedule new one if needed
+    if (deadlineChanged) {
+      if (oldJobId) {
+        await removeDeadlineReminder(oldJobId);
+        todo.deadlineJobId = null;
+      }
+      if (todo.deadline) {
+        const assigneeEmail = todo.assignedTo
+          ? (await User.findById(todo.assignedTo))?.email
+          : null;
+        const newJobId = await scheduleDeadlineReminder(
+          todo,
+          access.project,
+          assigneeEmail,
+          authUser.email
+        );
+        if (newJobId) {
+          todo.deadlineJobId = newJobId;
+        }
+      }
+      // Save the updated deadlineJobId back to the database
+      if (todo.deadlineJobId !== oldJobId) {
+        await Todo.updateOne({ _id: todo._id }, { deadlineJobId: todo.deadlineJobId });
+      }
+    }
 
     return NextResponse.json({
       message: "Todo updated",
@@ -390,6 +499,11 @@ export async function DELETE(request, { params }) {
         { error: "You don't have permission to delete this todo" },
         { status: 403 }
       );
+    }
+
+    // Remove any pending deadline reminder job before deleting the todo
+    if (todo.deadlineJobId) {
+      await removeDeadlineReminder(todo.deadlineJobId);
     }
 
     await Todo.deleteOne({ _id: id });
