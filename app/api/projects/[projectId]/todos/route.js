@@ -112,6 +112,7 @@ export async function GET(request, { params }) {
       createdBy: t.createdBy
         ? { id: t.createdBy._id, name: t.createdBy.name }
         : null,
+      deadline: t.deadline ? t.deadline.toISOString() : null,
       userRole: role,
       canEdit: canEditTask(role, t, access.user._id),
       canDelete: canDeleteTask(role, t, access.user._id),
@@ -152,12 +153,24 @@ export async function POST(request, { params }) {
       );
     }
 
-    const { text, assignedTo } = await request.json();
+    const { text, assignedTo, deadline } = await request.json();
     if (!text) {
       return NextResponse.json(
         { error: "Todo text is required" },
         { status: 400 }
       );
+    }
+
+    let parsedDeadline = null;
+    if (deadline) {
+      const d = new Date(deadline);
+      if (isNaN(d.getTime())) {
+        return NextResponse.json(
+          { error: "Invalid deadline date" },
+          { status: 400 }
+        );
+      }
+      parsedDeadline = d;
     }
 
     const Todo = await TodoModel();
@@ -191,6 +204,7 @@ export async function POST(request, { params }) {
       assignedToName,
       assignedBy: assignedToUser ? access.user._id : null,
       createdBy: access.user._id,
+      deadline: parsedDeadline,
     });
 
     return NextResponse.json({
@@ -207,6 +221,7 @@ export async function POST(request, { params }) {
           ? { id: access.user._id, name: access.user.name }
           : null,
         createdBy: { id: access.user._id, name: access.user.name },
+        deadline: todo.deadline ? todo.deadline.toISOString() : null,
         userRole: access.membership.role,
         canEdit: true,
         canDelete: true,
@@ -239,7 +254,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const { id, text, done, assignedTo } = await request.json();
+    const { id, text, done, assignedTo, deadline } = await request.json();
     if (!id) {
       return NextResponse.json(
         { error: "Todo ID is required" },
@@ -264,6 +279,21 @@ export async function PUT(request, { params }) {
 
     if (text !== undefined) todo.text = text;
     if (done !== undefined) todo.done = done;
+
+    if (deadline !== undefined) {
+      if (deadline === null) {
+        todo.deadline = null;
+      } else {
+        const d = new Date(deadline);
+        if (isNaN(d.getTime())) {
+          return NextResponse.json(
+            { error: "Invalid deadline date" },
+            { status: 400 }
+          );
+        }
+        todo.deadline = d;
+      }
+    }
 
     if (assignedTo !== undefined) {
       if (!canReassignTask(access.membership.role)) {
@@ -306,6 +336,7 @@ export async function PUT(request, { params }) {
           ? { id: todo.assignedBy, name: access.user.name }
           : null,
         createdBy: { id: todo.createdBy, name: access.user.name },
+        deadline: todo.deadline ? todo.deadline.toISOString() : null,
         userRole: access.membership.role,
         canEdit: canEditTask(access.membership.role, todo, access.user._id),
         canDelete: canDeleteTask(access.membership.role, todo, access.user._id),

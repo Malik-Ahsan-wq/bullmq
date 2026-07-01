@@ -14,6 +14,7 @@ export default function TodosPage() {
   const [todos, setTodos] = useState([]);
   const [newTodo, setNewTodo] = useState("");
   const [assignTo, setAssignTo] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
   const [todoStatus, setTodoStatus] = useState("");
   const [userRole, setUserRole] = useState("");
 
@@ -26,6 +27,8 @@ export default function TodosPage() {
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
+  const [editingDeadlineId, setEditingDeadlineId] = useState(null);
+  const [editingDeadlineValue, setEditingDeadlineValue] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -114,6 +117,7 @@ export default function TodosPage() {
         body: JSON.stringify({
           text: newTodo,
           assignedTo: assignTo || null,
+          deadline: newDeadline || null,
         }),
       });
 
@@ -122,6 +126,7 @@ export default function TodosPage() {
         setTodos([data.todo, ...todos]);
         setNewTodo("");
         setAssignTo("");
+        setNewDeadline("");
         setTodoStatus("Task added!");
         setTimeout(() => setTodoStatus(""), 2000);
       } else {
@@ -193,6 +198,32 @@ export default function TodosPage() {
       }
     } catch (err) {
       console.error("Failed to reassign todo:", err);
+    }
+  };
+
+  const updateDeadline = async (todoId, deadlineValue) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`/api/projects/${selectedProject}/todos`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: todoId,
+          deadline: deadlineValue || null,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTodos(todos.map((t) => (t.id === todoId ? { ...t, deadline: data.todo.deadline } : t)));
+        setEditingDeadlineId(null);
+        setEditingDeadlineValue("");
+      }
+    } catch (err) {
+      console.error("Failed to update deadline:", err);
     }
   };
 
@@ -310,6 +341,48 @@ export default function TodosPage() {
     }
   };
 
+  const getDeadlineInfo = (deadline, done) => {
+    if (!deadline) return null;
+    const now = new Date();
+    const dl = new Date(deadline);
+    if (done) {
+      return { className: "done", label: formatDeadline(dl) };
+    }
+    if (now > dl) {
+      return { className: "overdue", label: "Overdue" };
+    }
+    const diffMs = dl.getTime() - now.getTime();
+    const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffM = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (diffH < 24) {
+      return { className: "approaching", label: `In ${diffH}h ${diffM}m` };
+    }
+    return { className: "on-track", label: formatDeadline(dl) };
+  };
+
+  const formatDeadline = (date) => {
+    const d = new Date(date);
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h12 = hours % 12 || 12;
+    return `${month}/${day}/${year} ${h12}:${minutes} ${ampm}`;
+  };
+
+  const toDatetimeLocal = (isoString) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   if (loading) {
     return (
       <div className="container">
@@ -377,6 +450,13 @@ export default function TodosPage() {
                       </option>
                     ))}
                   </select>
+                  <input
+                    type="datetime-local"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="deadline-input"
+                    title="Set deadline (optional)"
+                  />
                   <button type="submit">Add</button>
                 </form>
                 {todoStatus && (
@@ -428,12 +508,61 @@ export default function TodosPage() {
                         ) : (
                           <span className="unassigned-badge">Unassigned</span>
                         )}
+                        {todo.deadline && (() => {
+                          const info = getDeadlineInfo(todo.deadline, todo.done);
+                          return info ? (
+                            <span className={`deadline-badge ${info.className}`}>
+                              {info.label}
+                            </span>
+                          ) : null;
+                        })()}
+                        {todo.canEdit && (
+                          <button
+                            className="deadline-edit-btn"
+                            onClick={() => {
+                              if (editingDeadlineId === todo.id) {
+                                setEditingDeadlineId(null);
+                                setEditingDeadlineValue("");
+                              } else {
+                                setEditingDeadlineId(todo.id);
+                                setEditingDeadlineValue(toDatetimeLocal(todo.deadline));
+                              }
+                            }}
+                            title="Edit deadline"
+                          >
+                            {editingDeadlineId === todo.id ? "Cancel" : "Deadline"}
+                          </button>
+                        )}
                         {todo.createdBy && (
                           <span className="created-by">
                             Created by: {todo.createdBy.name}
                           </span>
                         )}
                       </div>
+                      {editingDeadlineId === todo.id && (
+                        <div className="deadline-inline-edit">
+                          <input
+                            type="datetime-local"
+                            value={editingDeadlineValue}
+                            onChange={(e) => setEditingDeadlineValue(e.target.value)}
+                            className="deadline-input-inline"
+                          />
+                          <button
+                            className="btn-save-deadline"
+                            onClick={() => updateDeadline(todo.id, editingDeadlineValue)}
+                          >
+                            Save
+                          </button>
+                          {todo.deadline && (
+                            <button
+                              className="btn-clear-deadline"
+                              onClick={() => updateDeadline(todo.id, "")}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {todo.canAssign && (
                       <select

@@ -419,6 +419,100 @@ body {
   color: #888;
 }
 
+.deadline-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.deadline-badge.on-track {
+  color: #0070f3;
+  background: #e6f3ff;
+}
+
+.deadline-badge.approaching {
+  color: #856404;
+  background: #fff3cd;
+}
+
+.deadline-badge.overdue {
+  color: #fff;
+  background: #e00;
+}
+
+.deadline-badge.done {
+  color: #999;
+  background: #f0f0f0;
+  text-decoration: line-through;
+}
+
+.deadline-edit-btn {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #666;
+  cursor: pointer;
+}
+
+.deadline-edit-btn:hover {
+  background: #eee;
+  color: #333;
+}
+
+.deadline-input {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.deadline-inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.deadline-input-inline {
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.btn-save-deadline {
+  padding: 3px 8px;
+  font-size: 11px;
+  background: #0070f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-save-deadline:hover {
+  background: #0051a8;
+}
+
+.btn-clear-deadline {
+  padding: 3px 8px;
+  font-size: 11px;
+  background: #e9ecef;
+  color: #666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-clear-deadline:hover {
+  background: #ddd;
+}
+
 .reassign-select {
   padding: 4px 8px;
   border: 1px solid #ddd;
