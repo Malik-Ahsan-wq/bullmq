@@ -75,7 +75,7 @@ export default function InvitePage() {
   if (loading) {
     return (
       <div className="auth-container">
-        <div className="loading">Loading invite...</div>
+        <div className="loading">Loading invitation...</div>
       </div>
     );
   }
@@ -83,7 +83,7 @@ export default function InvitePage() {
   if (accepted) {
     return (
       <div className="auth-container">
-        <h1>Invite Accepted!</h1>
+        <h1 style={{ color: "#28a745" }}>Invite Accepted!</h1>
         <p style={{ textAlign: "center", color: "#666", margin: "20px 0" }}>
           You have successfully joined <strong>{project?.name}</strong>.
         </p>
@@ -107,8 +107,10 @@ export default function InvitePage() {
       {project && (
         <div style={{ marginBottom: "20px" }}>
           <p style={{ color: "#666", margin: "10px 0" }}>
-            <strong>{inviter?.name || "Someone"}</strong> has invited you to
-            join:
+            <strong style={{ color: "#0070f3" }}>
+              {inviter?.name || "Someone"}
+            </strong>{" "}
+            has invited you to join:
           </p>
           <div
             style={{
