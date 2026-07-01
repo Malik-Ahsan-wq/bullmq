@@ -29,6 +29,11 @@ const InviteSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "expired"],
       default: "pending",
     },
+    role: {
+      type: String,
+      enum: ["co-owner", "viewer"],
+      default: "viewer",
+    },
     expiresAt: {
       type: Date,
       required: true,

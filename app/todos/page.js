@@ -15,11 +15,13 @@ export default function TodosPage() {
   const [newTodo, setNewTodo] = useState("");
   const [assignTo, setAssignTo] = useState("");
   const [todoStatus, setTodoStatus] = useState("");
+  const [userRole, setUserRole] = useState("");
 
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [projectStatus, setProjectStatus] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("viewer");
   const [inviteStatus, setInviteStatus] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
@@ -89,6 +91,7 @@ export default function TodosPage() {
       const data = await res.json();
       if (res.ok) {
         setTodos(data.todos);
+        setUserRole(data.userRole);
       }
     } catch (err) {
       console.error("Failed to fetch todos:", err);
@@ -239,13 +242,14 @@ export default function TodosPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ email: inviteEmail }),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setInviteStatus(`Invite sent to ${inviteEmail}!`);
+        setInviteStatus(`Invite sent to ${inviteEmail} as ${inviteRole}!`);
         setInviteEmail("");
+        setInviteRole("viewer");
         setTimeout(() => setInviteStatus(""), 3000);
       } else {
         setInviteStatus(data.error || "Failed to send invite");
@@ -288,6 +292,24 @@ export default function TodosPage() {
     router.push("/");
   };
 
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case "owner": return "role-badge owner";
+      case "co-owner": return "role-badge co-owner";
+      case "viewer": return "role-badge viewer";
+      default: return "role-badge";
+    }
+  };
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case "owner": return "Owner";
+      case "co-owner": return "Co-owner";
+      case "viewer": return "Viewer";
+      default: return role;
+    }
+  };
+
   if (loading) {
     return (
       <div className="container">
@@ -303,6 +325,11 @@ export default function TodosPage() {
           <h1>Task Manager</h1>
           <div className="user-info">
             <span>{user?.name || user?.email}</span>
+            {userRole && (
+              <span className={getRoleBadgeClass(userRole)}>
+                {getRoleLabel(userRole)}
+              </span>
+            )}
             <button
               onClick={handleLogout}
               className="btn btn-secondary"
@@ -333,34 +360,43 @@ export default function TodosPage() {
 
         {selectedProject && (
           <>
-            <div className="add-todo-section">
-              <form className="add-todo" onSubmit={addTodo}>
-                <input
-                  type="text"
-                  value={newTodo}
-                  onChange={(e) => setNewTodo(e.target.value)}
-                  placeholder="Add a new task..."
-                />
-                <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.email})
-                    </option>
-                  ))}
-                </select>
-                <button type="submit">Add</button>
-              </form>
-              {todoStatus && (
-                <div className={todoStatus.includes("!") ? "success-msg" : "error"}>
-                  {todoStatus}
-                </div>
-              )}
-            </div>
+            {userRole !== "viewer" && (
+              <div className="add-todo-section">
+                <form className="add-todo" onSubmit={addTodo}>
+                  <input
+                    type="text"
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    placeholder="Add a new task..."
+                  />
+                  <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
+                    <option value="">Unassigned</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({getRoleLabel(m.role)})
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit">Add</button>
+                </form>
+                {todoStatus && (
+                  <div className={todoStatus.includes("!") ? "success-msg" : "error"}>
+                    {todoStatus}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {userRole === "viewer" && (
+              <div className="viewer-notice">
+                You are a Viewer. You can only view tasks.
+              </div>
+            )}
 
             {todos.length === 0 ? (
               <p style={{ textAlign: "center", color: "#999", padding: "20px" }}>
-                No tasks yet. Add one above!
+                No tasks yet.
+                {userRole !== "viewer" && " Add one above!"}
               </p>
             ) : (
               <ul className="todo-list">
@@ -369,11 +405,19 @@ export default function TodosPage() {
                     key={todo.id}
                     className={`todo-item ${todo.done ? "done" : ""}`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={todo.done}
-                      onChange={() => toggleTodo(todo.id, todo.done)}
-                    />
+                    {todo.canEdit ? (
+                      <input
+                        type="checkbox"
+                        checked={todo.done}
+                        onChange={() => toggleTodo(todo.id, todo.done)}
+                      />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={todo.done}
+                        disabled
+                      />
+                    )}
                     <div className="todo-content">
                       <span className="todo-text">{todo.text}</span>
                       <div className="todo-meta">
@@ -391,7 +435,7 @@ export default function TodosPage() {
                         )}
                       </div>
                     </div>
-                    {todo.isOwner && (
+                    {todo.canAssign && (
                       <select
                         className="reassign-select"
                         value={todo.assignedTo?.id || ""}
@@ -400,18 +444,20 @@ export default function TodosPage() {
                         <option value="">Unassigned</option>
                         {members.map((m) => (
                           <option key={m.id} value={m.id}>
-                            {m.name}
+                            {m.name} ({getRoleLabel(m.role)})
                           </option>
                         ))}
                       </select>
                     )}
                     <div className="todo-actions">
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => deleteTodo(todo.id)}
-                      >
-                        Delete
-                      </button>
+                      {todo.canDelete && (
+                        <button
+                          className="btn btn-danger"
+                          onClick={() => deleteTodo(todo.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -504,12 +550,38 @@ export default function TodosPage() {
                     placeholder="Email to invite"
                     required
                   />
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                  >
+                    <option value="viewer">Viewer (can only view)</option>
+                    <option value="co-owner">Co-owner (can manage tasks)</option>
+                  </select>
                   <button type="submit" className="btn-send-invite">
                     Send Invite
                   </button>
                 </form>
               )}
             </div>
+          </div>
+
+          <div className="members-section">
+            <h3>Project Members</h3>
+            {members.length === 0 ? (
+              <p className="no-projects">No members yet.</p>
+            ) : (
+              <div className="members-list">
+                {members.map((m) => (
+                  <div key={m.id} className="member-item">
+                    <span className="member-name">{m.name}</span>
+                    <span className="member-email">{m.email}</span>
+                    <span className={getRoleBadgeClass(m.role)}>
+                      {getRoleLabel(m.role)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

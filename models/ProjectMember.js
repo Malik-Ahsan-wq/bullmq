@@ -15,8 +15,8 @@ const ProjectMemberSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["owner", "member"],
-      default: "member",
+      enum: ["owner", "co-owner", "viewer"],
+      default: "viewer",
     },
   },
   { timestamps: true }

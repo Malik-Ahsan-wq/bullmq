@@ -15,7 +15,7 @@ export async function POST(request, { params }) {
     }
 
     const { projectId } = await params;
-    const { email } = await request.json();
+    const { email, role } = await request.json();
 
     if (!email) {
       return NextResponse.json(
@@ -23,6 +23,8 @@ export async function POST(request, { params }) {
         { status: 400 }
       );
     }
+
+    const validRole = ["co-owner", "viewer"].includes(role) ? role : "viewer";
 
     const User = await UserModel();
     const Project = await ProjectModel();
@@ -96,6 +98,7 @@ export async function POST(request, { params }) {
       invitedBy: inviter._id,
       status: "pending",
       expiresAt,
+      role: validRole,
     });
 
     const job = await emailQueue.add(
@@ -107,6 +110,7 @@ export async function POST(request, { params }) {
         inviterName: inviter.name,
         token,
         projectId: projectId.toString(),
+        role: validRole,
       },
       {
         attempts: 3,

@@ -78,7 +78,7 @@ export async function POST(request) {
     await ProjectMember.create({
       projectId: invite.projectId,
       userId: user._id,
-      role: "member",
+      role: invite.role || "viewer",
     });
 
     await Invite.updateOne({ _id: invite._id }, { status: "accepted" });

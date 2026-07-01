@@ -27,6 +27,33 @@ async function verifyProjectAccess(projectId, userEmail) {
   return { user, project, membership };
 }
 
+function canCreateTask(role) {
+  return ["owner", "co-owner"].includes(role);
+}
+
+function canEditTask(role, todo, userId) {
+  if (role === "owner") return true;
+  if (role === "co-owner") return true;
+  if (todo.createdBy.toString() === userId.toString()) return true;
+  if (todo.assignedTo && todo.assignedTo.toString() === userId.toString()) return true;
+  return false;
+}
+
+function canDeleteTask(role, todo, userId) {
+  if (role === "owner") return true;
+  if (role === "co-owner") return true;
+  if (todo.createdBy.toString() === userId.toString()) return true;
+  return false;
+}
+
+function canAssignTask(role) {
+  return ["owner", "co-owner"].includes(role);
+}
+
+function canReassignTask(role) {
+  return ["owner", "co-owner"].includes(role);
+}
+
 export async function GET(request, { params }) {
   try {
     const authUser = getUserFromRequest(request);
@@ -44,21 +71,32 @@ export async function GET(request, { params }) {
     }
 
     const Todo = await TodoModel();
+    const role = access.membership.role;
 
-    const todos = await Todo.find({
-      projectId,
-      $or: [
-        { assignedTo: null },
-        { assignedTo: access.user._id },
-        { createdBy: access.user._id },
-        { assignedBy: access.user._id },
-      ],
-    })
-      .populate("assignedTo", "name email")
-      .populate("assignedBy", "name email")
-      .populate("createdBy", "name email")
-      .sort({ createdAt: -1 })
-      .lean();
+    let todos;
+    if (role === "viewer") {
+      todos = await Todo.find({ projectId })
+        .populate("assignedTo", "name email")
+        .populate("assignedBy", "name email")
+        .populate("createdBy", "name email")
+        .sort({ createdAt: -1 })
+        .lean();
+    } else {
+      todos = await Todo.find({
+        projectId,
+        $or: [
+          { assignedTo: null },
+          { assignedTo: access.user._id },
+          { createdBy: access.user._id },
+          { assignedBy: access.user._id },
+        ],
+      })
+        .populate("assignedTo", "name email")
+        .populate("assignedBy", "name email")
+        .populate("createdBy", "name email")
+        .sort({ createdAt: -1 })
+        .lean();
+    }
 
     const formattedTodos = todos.map((t) => ({
       id: t._id,
@@ -74,11 +112,14 @@ export async function GET(request, { params }) {
       createdBy: t.createdBy
         ? { id: t.createdBy._id, name: t.createdBy.name }
         : null,
-      isOwner: access.membership.role === "owner",
+      userRole: role,
+      canEdit: canEditTask(role, t, access.user._id),
+      canDelete: canDeleteTask(role, t, access.user._id),
+      canAssign: canAssignTask(role),
       createdAt: t.createdAt,
     }));
 
-    return NextResponse.json({ todos: formattedTodos });
+    return NextResponse.json({ todos: formattedTodos, userRole: role });
   } catch (error) {
     console.error("Get project todos error:", error);
     return NextResponse.json(
@@ -104,6 +145,13 @@ export async function POST(request, { params }) {
       );
     }
 
+    if (!canCreateTask(access.membership.role)) {
+      return NextResponse.json(
+        { error: "Viewers cannot create tasks" },
+        { status: 403 }
+      );
+    }
+
     const { text, assignedTo } = await request.json();
     if (!text) {
       return NextResponse.json(
@@ -119,6 +167,12 @@ export async function POST(request, { params }) {
     let assignedToName = null;
 
     if (assignedTo) {
+      if (!canAssignTask(access.membership.role)) {
+        return NextResponse.json(
+          { error: "You don't have permission to assign tasks" },
+          { status: 403 }
+        );
+      }
       assignedToUser = await User.findById(assignedTo);
       if (!assignedToUser) {
         return NextResponse.json(
@@ -153,7 +207,10 @@ export async function POST(request, { params }) {
           ? { id: access.user._id, name: access.user.name }
           : null,
         createdBy: { id: access.user._id, name: access.user.name },
-        isOwner: access.membership.role === "owner",
+        userRole: access.membership.role,
+        canEdit: true,
+        canDelete: true,
+        canAssign: canAssignTask(access.membership.role),
         createdAt: todo.createdAt,
       },
     });
@@ -198,12 +255,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    const canEdit =
-      access.membership.role === "owner" ||
-      todo.createdBy.toString() === access.user._id.toString() ||
-      (todo.assignedTo && todo.assignedTo.toString() === access.user._id.toString());
-
-    if (!canEdit) {
+    if (!canEditTask(access.membership.role, todo, access.user._id)) {
       return NextResponse.json(
         { error: "You don't have permission to edit this todo" },
         { status: 403 }
@@ -214,6 +266,12 @@ export async function PUT(request, { params }) {
     if (done !== undefined) todo.done = done;
 
     if (assignedTo !== undefined) {
+      if (!canReassignTask(access.membership.role)) {
+        return NextResponse.json(
+          { error: "You don't have permission to reassign tasks" },
+          { status: 403 }
+        );
+      }
       if (assignedTo === null) {
         todo.assignedTo = null;
         todo.assignedToName = null;
@@ -248,7 +306,10 @@ export async function PUT(request, { params }) {
           ? { id: todo.assignedBy, name: access.user.name }
           : null,
         createdBy: { id: todo.createdBy, name: access.user.name },
-        isOwner: access.membership.role === "owner",
+        userRole: access.membership.role,
+        canEdit: canEditTask(access.membership.role, todo, access.user._id),
+        canDelete: canDeleteTask(access.membership.role, todo, access.user._id),
+        canAssign: canAssignTask(access.membership.role),
         createdAt: todo.createdAt,
       },
     });
@@ -293,11 +354,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    const canDelete =
-      access.membership.role === "owner" ||
-      todo.createdBy.toString() === access.user._id.toString();
-
-    if (!canDelete) {
+    if (!canDeleteTask(access.membership.role, todo, access.user._id)) {
       return NextResponse.json(
         { error: "You don't have permission to delete this todo" },
         { status: 403 }
