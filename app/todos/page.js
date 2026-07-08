@@ -24,11 +24,10 @@ export default function TodosPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
   const [inviteStatus, setInviteStatus] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailMessage, setEmailMessage] = useState("");
-  const [emailStatus, setEmailStatus] = useState("");
+  const [inviteRateLimitError, setInviteRateLimitError] = useState("");
   const [editingDeadlineId, setEditingDeadlineId] = useState(null);
   const [editingDeadlineValue, setEditingDeadlineValue] = useState("");
+  const [deadlineRateLimitError, setDeadlineRateLimitError] = useState("");
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, overdue: 0 });
 
   useEffect(() => {
@@ -131,6 +130,9 @@ export default function TodosPage() {
         setNewDeadline("");
         setTodoStatus("Task added!");
         setTimeout(() => setTodoStatus(""), 2000);
+      } else if (res.status === 429) {
+        setDeadlineRateLimitError(data.error || "Rate limit reached.");
+        setNewDeadline("");
       } else {
         setTodoStatus(data.error || "Failed to add task");
       }
@@ -223,6 +225,13 @@ export default function TodosPage() {
         setTodos(todos.map((t) => (t.id === todoId ? { ...t, deadline: data.todo.deadline } : t)));
         setEditingDeadlineId(null);
         setEditingDeadlineValue("");
+      } else {
+        const data = await res.json();
+        if (res.status === 429) {
+          setDeadlineRateLimitError(data.error || "Rate limit reached.");
+          setEditingDeadlineId(null);
+          setEditingDeadlineValue("");
+        }
       }
     } catch (err) {
       console.error("Failed to update deadline:", err);
@@ -284,38 +293,14 @@ export default function TodosPage() {
         setInviteEmail("");
         setInviteRole("viewer");
         setTimeout(() => setInviteStatus(""), 3000);
+      } else if (res.status === 429) {
+        setInviteRateLimitError(data.error || "Rate limit reached.");
+        setInviteEmail("");
       } else {
         setInviteStatus(data.error || "Failed to send invite");
       }
     } catch (err) {
       setInviteStatus("Network error");
-    }
-  };
-
-  const sendEmail = async (e) => {
-    e.preventDefault();
-    setEmailStatus("Sending...");
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch("/api/email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ subject: emailSubject, message: emailMessage }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setEmailStatus(`Email queued! Job ID: ${data.jobId}`);
-        setEmailSubject("");
-        setEmailMessage("");
-      } else {
-        setEmailStatus(data.error || "Failed to send email");
-      }
-    } catch (err) {
-      setEmailStatus("Network error");
     }
   };
 
@@ -643,31 +628,6 @@ export default function TodosPage() {
           </>
         )}
 
-        <div className="email-section">
-          <h2>Send Email Notification</h2>
-          {emailStatus && (
-            <div className={emailStatus.includes("queued") ? "success-msg" : "error"}>
-              {emailStatus}
-            </div>
-          )}
-          <form className="email-form" onSubmit={sendEmail}>
-            <input
-              type="text"
-              value={emailSubject}
-              onChange={(e) => setEmailSubject(e.target.value)}
-              placeholder="Email subject"
-              required
-            />
-            <textarea
-              value={emailMessage}
-              onChange={(e) => setEmailMessage(e.target.value)}
-              placeholder="Email message"
-              required
-            />
-            <button type="submit">Send Email</button>
-          </form>
-        </div>
-
         <div className="invite-section">
           <h2>Projects & Invites</h2>
 
@@ -761,6 +721,26 @@ export default function TodosPage() {
             )}
           </div>
         </div>
+        {deadlineRateLimitError && (
+          <div className="rate-limit-overlay" onClick={() => setDeadlineRateLimitError("")}>
+            <div className="rate-limit-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="rate-limit-icon">🚫</div>
+              <h3>Deadline Rate Limit Reached</h3>
+              <p>{deadlineRateLimitError}</p>
+              <button className="rate-limit-close" onClick={() => setDeadlineRateLimitError("")}>Dismiss</button>
+            </div>
+          </div>
+        )}
+        {inviteRateLimitError && (
+          <div className="rate-limit-overlay" onClick={() => setInviteRateLimitError("")}>
+            <div className="rate-limit-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="rate-limit-icon">🚫</div>
+              <h3>Invite Rate Limit Reached</h3>
+              <p>{inviteRateLimitError}</p>
+              <button className="rate-limit-close" onClick={() => setInviteRateLimitError("")}>Dismiss</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

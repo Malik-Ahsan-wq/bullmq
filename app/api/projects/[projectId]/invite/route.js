@@ -6,6 +6,7 @@ import UserModel from "../../../../../models/User";
 import ProjectModel from "../../../../../models/Project";
 import ProjectMemberModel from "../../../../../models/ProjectMember";
 import InviteModel from "../../../../../models/Invite";
+import connection from "../../../../../lib/redis";
 
 export async function POST(request, { params }) {
   try {
@@ -88,6 +89,18 @@ export async function POST(request, { params }) {
       );
     }
 
+    // Rate limit: configurable max invites per user via INVITE_RATE_LIMIT env
+    const INVITE_LIMIT = parseInt(process.env.INVITE_RATE_LIMIT || "1");
+    const rateLimitKey = `invite:ratelimit:${inviter._id.toString()}`;
+    const count = await connection.incr(rateLimitKey);
+    if (count > INVITE_LIMIT) {
+      await connection.decr(rateLimitKey);
+      return NextResponse.json(
+        { error: `Rate limit reached. You can only send ${INVITE_LIMIT} invite${INVITE_LIMIT > 1 ? "s" : ""}.` },
+        { status: 429 }
+      );
+    }
+
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -100,6 +113,8 @@ export async function POST(request, { params }) {
       expiresAt,
       role: validRole,
     });
+
+    await connection.set(rateLimitKey, count.toString());
 
     const job = await emailQueue.add(
       "sendInviteEmail",
@@ -114,10 +129,7 @@ export async function POST(request, { params }) {
       },
       {
         attempts: 3,
-        backoff: {
-          type: "exponential",
-          delay: 2000,
-        },
+        backoff: { type: "exponential", delay: 2000 },
       }
     );
 

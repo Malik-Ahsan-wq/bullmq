@@ -6,6 +6,7 @@ import ProjectMemberModel from "../../../../../models/ProjectMember";
 import TodoModel from "../../../../../models/Todo";
 import ProjectStatsModel from "../../../../../models/ProjectStats";
 import deadlineQueue from "../../../../../lib/deadlineQueue";
+import connection from "../../../../../lib/redis";
 
 async function updateProjectStats(projectId) {
   try {
@@ -304,8 +305,20 @@ export async function POST(request, { params }) {
       deadline: parsedDeadline,
     });
 
-    // Schedule a deadline reminder job if a deadline was provided
+    // Rate limit: configurable max deadlines per user via DEADLINE_RATE_LIMIT env
     let deadlineJobId = null;
+    if (parsedDeadline) {
+      const DEADLINE_LIMIT = parseInt(process.env.DEADLINE_RATE_LIMIT || "1");
+      const dlKey = `deadline:ratelimit:${access.user._id.toString()}`;
+      const count = await connection.incr(dlKey);
+      if (count > DEADLINE_LIMIT) {
+        await connection.decr(dlKey);
+        return NextResponse.json(
+          { error: `Rate limit reached. You can only set ${DEADLINE_LIMIT} deadline${DEADLINE_LIMIT > 1 ? "s" : ""}.` },
+          { status: 429 }
+        );
+      }
+    }
     if (parsedDeadline) {
       const assigneeEmail = assignedToUser ? assignedToUser.email : null;
       deadlineJobId = await scheduleDeadlineReminder(
@@ -456,6 +469,18 @@ export async function PUT(request, { params }) {
       if (oldJobId) {
         await removeDeadlineReminder(oldJobId);
         todo.deadlineJobId = null;
+      }
+      if (todo.deadline) {
+        const DEADLINE_LIMIT = parseInt(process.env.DEADLINE_RATE_LIMIT || "1");
+        const dlKey = `deadline:ratelimit:${access.user._id.toString()}`;
+        const count = await connection.incr(dlKey);
+        if (count > DEADLINE_LIMIT) {
+          await connection.decr(dlKey);
+          return NextResponse.json(
+            { error: `Rate limit reached. You can only set ${DEADLINE_LIMIT} deadline${DEADLINE_LIMIT > 1 ? "s" : ""}.` },
+            { status: 429 }
+          );
+        }
       }
       if (todo.deadline) {
         const assigneeEmail = todo.assignedTo
