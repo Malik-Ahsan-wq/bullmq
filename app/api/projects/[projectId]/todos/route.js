@@ -4,7 +4,46 @@ import UserModel from "../../../../../models/User";
 import ProjectModel from "../../../../../models/Project";
 import ProjectMemberModel from "../../../../../models/ProjectMember";
 import TodoModel from "../../../../../models/Todo";
+import ProjectStatsModel from "../../../../../models/ProjectStats";
 import deadlineQueue from "../../../../../lib/deadlineQueue";
+
+async function updateProjectStats(projectId) {
+  try {
+    const Todo = await TodoModel();
+    const ProjectStats = await ProjectStatsModel();
+    const ProjectMember = await ProjectMemberModel();
+    const User = await UserModel();
+    const now = new Date();
+
+    const [total, completed, overdue, memberships] = await Promise.all([
+      Todo.countDocuments({ projectId }),
+      Todo.countDocuments({ projectId, done: true }),
+      Todo.countDocuments({ projectId, done: false, deadline: { $lt: now } }),
+      ProjectMember.find({ projectId }).lean(),
+    ]);
+
+    const userIds = memberships.map((m) => m.userId);
+    const users = await User.find({ _id: { $in: userIds } }, "name email").lean();
+    const userMap = Object.fromEntries(users.map((u) => [u._id.toString(), u]));
+
+    const members = memberships.map((m) => ({
+      userId: m.userId,
+      name: userMap[m.userId.toString()]?.name || "",
+      email: userMap[m.userId.toString()]?.email || "",
+      role: m.role,
+    }));
+
+    const result = await ProjectStats.findOneAndUpdate(
+      { projectId },
+      { $set: { total, completed, pending: total - completed, overdue, lastUpdated: now, members } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log(`[Stats] saved _id:${result._id} project:${projectId} total:${total} completed:${completed} pending:${total - completed} overdue:${overdue} members:${members.length}`);
+    return result;
+  } catch (err) {
+    console.error(`[Stats] ERROR saving stats for project ${projectId}:`, err);
+  }
+}
 
 async function verifyProjectAccess(projectId, userEmail) {
   const User = await UserModel();
@@ -173,7 +212,12 @@ export async function GET(request, { params }) {
       createdAt: t.createdAt,
     }));
 
-    return NextResponse.json({ todos: formattedTodos, userRole: role });
+    const saved = await updateProjectStats(projectId);
+    const stats = saved
+      ? { total: saved.total, completed: saved.completed, pending: saved.pending, overdue: saved.overdue, lastUpdated: saved.lastUpdated }
+      : { total: 0, completed: 0, pending: 0, overdue: 0, lastUpdated: null };
+
+    return NextResponse.json({ todos: formattedTodos, userRole: role, stats });
   } catch (error) {
     console.error("Get project todos error:", error);
     return NextResponse.json(
@@ -274,6 +318,8 @@ export async function POST(request, { params }) {
         await Todo.updateOne({ _id: todo._id }, { deadlineJobId });
       }
     }
+
+    await updateProjectStats(projectId);
 
     return NextResponse.json({
       message: "Todo created",
@@ -431,6 +477,8 @@ export async function PUT(request, { params }) {
       }
     }
 
+    await updateProjectStats(projectId);
+
     return NextResponse.json({
       message: "Todo updated",
       todo: {
@@ -507,6 +555,7 @@ export async function DELETE(request, { params }) {
     }
 
     await Todo.deleteOne({ _id: id });
+    await updateProjectStats(projectId);
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

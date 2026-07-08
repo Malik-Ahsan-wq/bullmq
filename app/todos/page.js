@@ -29,6 +29,7 @@ export default function TodosPage() {
   const [emailStatus, setEmailStatus] = useState("");
   const [editingDeadlineId, setEditingDeadlineId] = useState(null);
   const [editingDeadlineValue, setEditingDeadlineValue] = useState("");
+  const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, overdue: 0 });
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -95,6 +96,7 @@ export default function TodosPage() {
       if (res.ok) {
         setTodos(data.todos);
         setUserRole(data.userRole);
+        if (data.stats) setStats(data.stats);
       }
     } catch (err) {
       console.error("Failed to fetch todos:", err);
@@ -414,6 +416,47 @@ export default function TodosPage() {
             </button>
           </div>
         </div>
+
+        {selectedProject && (
+          <div className="dashboard-stats">
+            <div className="stat-card total">
+              <div className="stat-icon">📋</div>
+              <div className="stat-info">
+                <span className="stat-value">{stats.total}</span>
+                <span className="stat-label">Total Tasks</span>
+              </div>
+            </div>
+            <div className="stat-card completed">
+              <div className="stat-icon">✅</div>
+              <div className="stat-info">
+                <span className="stat-value">{stats.completed}</span>
+                <span className="stat-label">Completed</span>
+              </div>
+              {stats.total > 0 && (
+                <div className="stat-progress">
+                  <div
+                    className="stat-progress-bar"
+                    style={{ width: `${Math.round((stats.completed / stats.total) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="stat-card pending">
+              <div className="stat-icon">⏳</div>
+              <div className="stat-info">
+                <span className="stat-value">{stats.pending}</span>
+                <span className="stat-label">Pending</span>
+              </div>
+            </div>
+            <div className="stat-card overdue">
+              <div className="stat-icon">🔥</div>
+              <div className="stat-info">
+                <span className="stat-value">{stats.overdue}</span>
+                <span className="stat-label">Overdue</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="project-selector">
           <label>Select Project:</label>

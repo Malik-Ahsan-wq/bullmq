@@ -3,6 +3,41 @@ import InviteModel from "../../../../models/Invite";
 import ProjectModel from "../../../../models/Project";
 import UserModel from "../../../../models/User";
 import ProjectMemberModel from "../../../../models/ProjectMember";
+import TodoModel from "../../../../models/Todo";
+import ProjectStatsModel from "../../../../models/ProjectStats";
+
+async function updateProjectStats(projectId) {
+  try {
+    const Todo = await TodoModel();
+    const ProjectStats = await ProjectStatsModel();
+    const ProjectMember = await ProjectMemberModel();
+    const User = await UserModel();
+    const now = new Date();
+    const [total, completed, overdue, memberships] = await Promise.all([
+      Todo.countDocuments({ projectId }),
+      Todo.countDocuments({ projectId, done: true }),
+      Todo.countDocuments({ projectId, done: false, deadline: { $lt: now } }),
+      ProjectMember.find({ projectId }).lean(),
+    ]);
+    const userIds = memberships.map((m) => m.userId);
+    const users = await User.find({ _id: { $in: userIds } }, "name email").lean();
+    const userMap = Object.fromEntries(users.map((u) => [u._id.toString(), u]));
+    const members = memberships.map((m) => ({
+      userId: m.userId,
+      name: userMap[m.userId.toString()]?.name || "",
+      email: userMap[m.userId.toString()]?.email || "",
+      role: m.role,
+    }));
+    const result = await ProjectStats.findOneAndUpdate(
+      { projectId },
+      { $set: { total, completed, pending: total - completed, overdue, lastUpdated: now, members } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log(`[Stats] saved _id:${result._id} project:${projectId} members:${members.length}`);
+  } catch (err) {
+    console.error(`[Stats] ERROR saving stats for project ${projectId}:`, err);
+  }
+}
 
 export async function POST(request) {
   try {
@@ -82,6 +117,7 @@ export async function POST(request) {
     });
 
     await Invite.updateOne({ _id: invite._id }, { status: "accepted" });
+    await updateProjectStats(invite.projectId);
 
     return NextResponse.json({
       message: "Invite accepted successfully",
