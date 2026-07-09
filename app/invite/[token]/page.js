@@ -3,6 +3,23 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+function ConfirmModal({ open, icon, title, message, confirmLabel, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        {icon && <div className="confirm-icon">{icon}</div>}
+        <h3 className="confirm-title">{title}</h3>
+        {message && <p className="confirm-message">{message}</p>}
+        <div className="confirm-actions">
+          <button className="confirm-btn-cancel" onClick={onCancel}>Cancel</button>
+          <button className="confirm-btn-ok success" onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
@@ -15,6 +32,7 @@ export default function InvitePage() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -123,13 +141,24 @@ export default function InvitePage() {
       )}
 
       {invite && invite.status === "pending" && (
-        <button
-          className="btn btn-primary"
-          onClick={handleAccept}
-          disabled={accepting}
-        >
-          {accepting ? "Accepting..." : "Accept Invitation"}
-        </button>
+        <>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowConfirm(true)}
+            disabled={accepting}
+          >
+            {accepting ? "Accepting..." : "Accept Invitation"}
+          </button>
+          <ConfirmModal
+            open={showConfirm}
+            icon="🤝"
+            title="Join this project?"
+            message={`You will be added to "${project?.name}" as a member.`}
+            confirmLabel="Yes, Join"
+            onConfirm={() => { setShowConfirm(false); handleAccept(); }}
+            onCancel={() => setShowConfirm(false)}
+          />
+        </>
       )}
     </div>
   );

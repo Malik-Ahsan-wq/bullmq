@@ -3,6 +3,23 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+function ConfirmModal({ open, icon, title, message, confirmLabel, confirmClass, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+        {icon && <div className="confirm-icon">{icon}</div>}
+        <h3 className="confirm-title">{title}</h3>
+        {message && <p className="confirm-message">{message}</p>}
+        <div className="confirm-actions">
+          <button className="confirm-btn-cancel" onClick={onCancel}>Cancel</button>
+          <button className={`confirm-btn-ok ${confirmClass || ""}`} onClick={onConfirm}>{confirmLabel || "Confirm"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TodosPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +53,8 @@ export default function TodosPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditPagination, setAuditPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [auditFilter, setAuditFilter] = useState({ action: "", resourceType: "", email: "" });
+  const [unreadAuditCount, setUnreadAuditCount] = useState(0);
+  const [confirm, setConfirm] = useState({ open: false, icon: "", title: "", message: "", confirmLabel: "", confirmClass: "", onConfirm: null });
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -60,7 +79,11 @@ export default function TodosPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (res.ok) setGlobalStats(data);
+      if (res.ok) {
+        setGlobalStats(data);
+        const seen = parseInt(localStorage.getItem("seenAuditCount") || "0");
+        setUnreadAuditCount(Math.max(0, data.totalAuditLogs - seen));
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -140,14 +163,26 @@ export default function TodosPage() {
     } catch (err) { console.error(err); }
   };
 
-  const deleteTodo = async (id) => {
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`/api/projects/${selectedProject}/todos?id=${id}`, {
-        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setTodos(todos.filter((t) => t.id !== id));
-    } catch (err) { console.error(err); }
+  const deleteTodo = (id) => {
+    const todo = todos.find((t) => t.id === id);
+    setConfirm({
+      open: true,
+      icon: "🗑️",
+      title: "Delete task?",
+      message: todo ? `"${todo.text}" will be permanently deleted.` : "This task will be permanently deleted.",
+      confirmLabel: "Delete",
+      confirmClass: "danger",
+      onConfirm: async () => {
+        closeConfirm();
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`/api/projects/${selectedProject}/todos?id=${id}`, {
+            method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) setTodos(todos.filter((t) => t.id !== id));
+        } catch (err) { console.error(err); }
+      },
+    });
   };
 
   const reassignTodo = async (todoId, newAssigneeId) => {
@@ -198,25 +233,49 @@ export default function TodosPage() {
     } catch { setProjectStatus("Network error"); }
   };
 
-  const sendInvite = async (e) => {
+  const sendInvite = (e) => {
     e.preventDefault();
     if (!inviteEmail.trim() || !selectedProject) return;
-    setInviteStatus("Sending invite...");
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`/api/projects/${selectedProject}/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
-      });
-      const data = await res.json();
-      if (res.ok) { setInviteStatus(`Invite sent to ${inviteEmail} as ${inviteRole}!`); setInviteEmail(""); setInviteRole("viewer"); setTimeout(() => setInviteStatus(""), 3000); }
-      else if (res.status === 429) { setInviteRateLimitError(data.error || "Rate limit reached."); setInviteEmail(""); }
-      else setInviteStatus(data.error || "Failed to send invite");
-    } catch { setInviteStatus("Network error"); }
+    const projectName = projects.find((p) => p.id === selectedProject)?.name || "this project";
+    setConfirm({
+      open: true,
+      icon: "✉️",
+      title: "Send invite?",
+      message: `Send a ${inviteRole === "co-owner" ? "Co-owner" : "Viewer"} invite to ${inviteEmail} for "${projectName}"?`,
+      confirmLabel: "Send Invite",
+      confirmClass: "success",
+      onConfirm: async () => {
+        closeConfirm();
+        setInviteStatus("Sending invite...");
+        const token = localStorage.getItem("token");
+        try {
+          const res = await fetch(`/api/projects/${selectedProject}/invite`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+          });
+          const data = await res.json();
+          if (res.ok) { setInviteStatus(`Invite sent to ${inviteEmail} as ${inviteRole}!`); setInviteEmail(""); setInviteRole("viewer"); setTimeout(() => setInviteStatus(""), 3000); }
+          else if (res.status === 429) { setInviteRateLimitError(data.error || "Rate limit reached."); setInviteEmail(""); }
+          else setInviteStatus(data.error || "Failed to send invite");
+        } catch { setInviteStatus("Network error"); }
+      },
+    });
   };
 
-  const handleLogout = () => { localStorage.removeItem("token"); localStorage.removeItem("user"); router.push("/"); };
+  const closeConfirm = () => setConfirm((c) => ({ ...c, open: false }));
+
+  const handleLogout = () => {
+    setConfirm({
+      open: true,
+      icon: "🚪",
+      title: "Log out?",
+      message: "You will be signed out of your account.",
+      confirmLabel: "Log out",
+      confirmClass: "danger",
+      onConfirm: () => { localStorage.removeItem("token"); localStorage.removeItem("user"); router.push("/"); },
+    });
+  };
 
   const getRoleBadgeClass = (role) => {
     if (role === "owner") return "role-badge owner";
@@ -278,7 +337,7 @@ export default function TodosPage() {
           </div>
         </div>
 
-        {selectedProject && (
+        {selectedProject && userRole !== "viewer" && (
           <div className="dashboard-stats">
             <div className="stat-card total">
               <div className="stat-icon">📋</div>
@@ -300,7 +359,7 @@ export default function TodosPage() {
           </div>
         )}
 
-        {selectedProject && (
+        {selectedProject && userRole !== "viewer" && (
           <div className="dashboard-stats global-stats">
             <div className="stat-card stat-members">
               <div className="stat-icon">👥</div>
@@ -323,8 +382,15 @@ export default function TodosPage() {
 
         <div className="tabs">
           <button className={`tab${activeTab === "tasks" ? " active" : ""}`} onClick={() => setActiveTab("tasks")}>Tasks</button>
-          <button className={`tab${activeTab === "projects" ? " active" : ""}`} onClick={() => setActiveTab("projects")}>Projects & Invites</button>
-          <button className={`tab${activeTab === "audit" ? " active" : ""}`} onClick={() => { setActiveTab("audit"); fetchAuditLogs(1); }}>Audit Logs</button>
+          {userRole !== "viewer" && (
+            <button className={`tab${activeTab === "projects" ? " active" : ""}`} onClick={() => setActiveTab("projects")}>Projects & Invites</button>
+          )}
+          {userRole !== "viewer" && (
+            <button className={`tab${activeTab === "audit" ? " active" : ""}`} onClick={() => { setActiveTab("audit"); fetchAuditLogs(1); localStorage.setItem("seenAuditCount", globalStats.totalAuditLogs.toString()); setUnreadAuditCount(0); }}>
+              Audit Logs
+              {unreadAuditCount > 0 && <span className="notif-badge">{unreadAuditCount > 99 ? "99+" : unreadAuditCount}</span>}
+            </button>
+          )}
         </div>
 
         {activeTab === "tasks" && (
@@ -353,7 +419,9 @@ export default function TodosPage() {
                   </div>
                 )}
 
-                {userRole === "viewer" && <div className="viewer-notice">You are a Viewer. You can only view tasks.</div>}
+                {userRole === "viewer" && (
+                  <div className="viewer-notice">You are a Viewer — showing only your assigned tasks.</div>
+                )}
 
                 {todos.length === 0 ? (
                   <div className="empty-state">
@@ -405,7 +473,7 @@ export default function TodosPage() {
           </>
         )}
 
-        {activeTab === "projects" && (
+        {activeTab === "projects" && userRole !== "viewer" && (
           <div className="invite-section">
             <h2>Projects & Invites</h2>
             <div className="invite-panels">
@@ -453,7 +521,7 @@ export default function TodosPage() {
           </div>
         )}
 
-        {activeTab === "audit" && (
+        {activeTab === "audit" && userRole !== "viewer" && (
           <div className="audit-section">
             <div className="audit-filters">
               <input type="text" placeholder="Filter by action..." value={auditFilter.action} onChange={(e) => setAuditFilter((f) => ({ ...f, action: e.target.value }))} />
@@ -532,6 +600,17 @@ export default function TodosPage() {
             </div>
           </div>
         )}
+
+        <ConfirmModal
+          open={confirm.open}
+          icon={confirm.icon}
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          confirmClass={confirm.confirmClass}
+          onConfirm={confirm.onConfirm}
+          onCancel={closeConfirm}
+        />
       </div>
     </div>
   );
