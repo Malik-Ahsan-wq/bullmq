@@ -29,6 +29,7 @@ export default function TodosPage() {
   const [editingDeadlineValue, setEditingDeadlineValue] = useState("");
   const [deadlineRateLimitError, setDeadlineRateLimitError] = useState("");
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, overdue: 0 });
+  const [globalStats, setGlobalStats] = useState({ totalInvites: 0, pendingInvites: 0, acceptedInvites: 0, totalMembers: 0, totalAuditLogs: 0 });
 
   const [activeTab, setActiveTab] = useState("tasks");
   const [auditLogs, setAuditLogs] = useState([]);
@@ -49,8 +50,19 @@ export default function TodosPage() {
       const token = localStorage.getItem("token");
       fetchMembers(token, selectedProject);
       fetchTodos(token, selectedProject);
+      fetchGlobalStats(token, selectedProject);
     }
   }, [selectedProject]);
+
+  const fetchGlobalStats = async (token, projectId) => {
+    try {
+      const res = await fetch(`/api/stats${projectId ? `?projectId=${projectId}` : ""}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setGlobalStats(data);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchProjects = async (token) => {
     try {
@@ -284,6 +296,27 @@ export default function TodosPage() {
             <div className="stat-card overdue">
               <div className="stat-icon">🔥</div>
               <div className="stat-info"><span className="stat-value">{stats.overdue}</span><span className="stat-label">Overdue</span></div>
+            </div>
+          </div>
+        )}
+
+        {selectedProject && (
+          <div className="dashboard-stats global-stats">
+            <div className="stat-card stat-members">
+              <div className="stat-icon">👥</div>
+              <div className="stat-info"><span className="stat-value">{globalStats.totalMembers}</span><span className="stat-label">Total Members</span></div>
+            </div>
+            <div className="stat-card stat-invites">
+              <div className="stat-icon">✉️</div>
+              <div className="stat-info"><span className="stat-value">{globalStats.totalInvites}</span><span className="stat-label">Total Invites</span></div>
+            </div>
+            <div className="stat-card stat-invites-pending">
+              <div className="stat-icon">⏰</div>
+              <div className="stat-info"><span className="stat-value">{globalStats.pendingInvites}</span><span className="stat-label">Pending Invites</span></div>
+            </div>
+            <div className="stat-card stat-audit">
+              <div className="stat-icon">🔍</div>
+              <div className="stat-info"><span className="stat-value">{globalStats.totalAuditLogs}</span><span className="stat-label">Audit Logs</span></div>
             </div>
           </div>
         )}

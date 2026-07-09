@@ -43,13 +43,109 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 50%, #f0fdfa 100%);
   color: var(--gray-800);
   min-height: 100vh;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   GLOBAL SELECT — professional custom dropdown
+   ============================================ */
+
+select {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 10px 36px 10px 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+  line-height: 1.4;
+}
+
+select:hover {
+  border-color: var(--gray-300);
+  background-color: var(--gray-50);
+}
+
+select:focus {
+  border-color: var(--primary);
+  background-color: white;
+  box-shadow: 0 0 0 3px var(--primary-glow);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+
+select option {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  background: white;
+  padding: 8px 12px;
+}
+
+/* ============================================
+   GLOBAL INPUT — consistent across all inputs
+   ============================================ */
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="datetime-local"] {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--gray-800);
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 10px 13px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+  line-height: 1.4;
+}
+
+input[type="text"]::placeholder,
+input[type="email"]::placeholder,
+input[type="password"]::placeholder {
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+input[type="text"]:hover,
+input[type="email"]:hover,
+input[type="password"]:hover,
+input[type="datetime-local"]:hover {
+  border-color: var(--gray-300);
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="datetime-local"]:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+input[type="datetime-local"] {
+  color-scheme: light;
 }
 
 /* ============================================
@@ -119,24 +215,7 @@ body {
 
 .form-group input {
   width: 100%;
-  padding: 11px 14px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-md);
   font-size: 14px;
-  color: var(--gray-800);
-  background: var(--gray-50);
-  transition: all var(--transition);
-  outline: none;
-}
-
-.form-group input::placeholder {
-  color: var(--gray-400);
-}
-
-.form-group input:focus {
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 /* ============================================
@@ -353,21 +432,7 @@ body {
 
 .project-selector select {
   flex: 1;
-  padding: 8px 12px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-sm);
   font-size: 14px;
-  font-weight: 500;
-  background: white;
-  cursor: pointer;
-  color: var(--gray-700);
-  transition: all var(--transition);
-  outline: none;
-}
-
-.project-selector select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 /* ============================================
@@ -386,43 +451,14 @@ body {
 
 .add-todo input[type="text"] {
   flex: 1;
-  padding: 11px 14px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  color: var(--gray-800);
-  background: var(--gray-50);
-  transition: all var(--transition);
-  outline: none;
-}
-
-.add-todo input[type="text"]::placeholder {
-  color: var(--gray-400);
-}
-
-.add-todo input[type="text"]:focus {
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .add-todo select {
-  padding: 11px 12px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  font-weight: 500;
-  background: white;
-  cursor: pointer;
   min-width: 140px;
-  color: var(--gray-600);
-  transition: all var(--transition);
-  outline: none;
 }
 
-.add-todo select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+.add-todo input[type="datetime-local"] {
+  min-width: 160px;
 }
 
 .add-todo button {
@@ -693,20 +729,8 @@ body {
 }
 
 .deadline-input {
-  padding: 8px 10px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
   min-width: 150px;
-  color: var(--gray-600);
-  transition: all var(--transition);
-  outline: none;
-  background: white;
-}
-
-.deadline-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  font-size: 12px;
 }
 
 .deadline-inline-edit {
@@ -721,20 +745,8 @@ body {
 }
 
 .deadline-input-inline {
-  padding: 7px 10px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
   min-width: 150px;
-  color: var(--gray-600);
-  outline: none;
-  background: white;
-  transition: all var(--transition);
-}
-
-.deadline-input-inline:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  font-size: 12px;
 }
 
 .btn-save-deadline {
@@ -777,22 +789,8 @@ body {
    ============================================ */
 
 .reassign-select {
-  padding: 6px 10px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  background: white;
-  cursor: pointer;
   min-width: 110px;
-  color: var(--gray-600);
-  transition: all var(--transition);
-  outline: none;
-}
-
-.reassign-select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  font-size: 12px;
 }
 
 /* ============================================
@@ -821,27 +819,9 @@ body {
 
 .email-form input,
 .email-form textarea {
-  padding: 11px 14px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  font-size: 14px;
   font-family: inherit;
-  color: var(--gray-800);
-  background: var(--gray-50);
-  transition: all var(--transition);
-  outline: none;
-}
-
-.email-form input::placeholder,
-.email-form textarea::placeholder {
-  color: var(--gray-400);
-}
-
-.email-form input:focus,
-.email-form textarea:focus {
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 0 0 3px var(--primary-glow);
+  font-size: 14px;
+  width: 100%;
 }
 
 .email-form textarea {
@@ -952,29 +932,7 @@ body {
 
 .invite-form input,
 .invite-form select {
-  padding: 9px 12px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  color: var(--gray-700);
-  background: white;
-  transition: all var(--transition);
-  outline: none;
-}
-
-.invite-form input::placeholder {
-  color: var(--gray-400);
-}
-
-.invite-form input:focus,
-.invite-form select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
-}
-
-.invite-form select {
-  cursor: pointer;
-  font-weight: 500;
+  width: 100%;
 }
 
 .btn-create-project {
@@ -1191,6 +1149,28 @@ body {
   border-color: rgba(220, 38, 38, 0.15);
 }
 
+.stat-card.stat-members {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: rgba(22, 163, 74, 0.15);
+}
+
+.stat-card.stat-invites {
+  background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%);
+  border-color: rgba(147, 51, 234, 0.15);
+}
+
+.stat-card.stat-invites-pending {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border-color: rgba(234, 88, 12, 0.15);
+}
+
+.stat-card.stat-audit {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: rgba(2, 132, 199, 0.15);
+}
+
+.global-stats { margin-top: -8px; }
+
 .stat-icon {
   font-size: 22px;
   line-height: 1;
@@ -1215,6 +1195,10 @@ body {
 .stat-card.completed .stat-value { color: var(--success); }
 .stat-card.pending .stat-value { color: var(--warning); }
 .stat-card.overdue .stat-value { color: var(--danger); }
+.stat-card.stat-members .stat-value { color: #16a34a; }
+.stat-card.stat-invites .stat-value { color: #9333ea; }
+.stat-card.stat-invites-pending .stat-value { color: #ea580c; }
+.stat-card.stat-audit .stat-value { color: #0284c7; }
 
 .stat-label {
   font-size: 11px;
@@ -1421,22 +1405,8 @@ body {
 
 .audit-filters input,
 .audit-filters select {
-  padding: 9px 12px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--gray-700);
-  background: white;
-  outline: none;
-  transition: all var(--transition);
   flex: 1;
   min-width: 140px;
-}
-
-.audit-filters input:focus,
-.audit-filters select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .btn-audit-search {
