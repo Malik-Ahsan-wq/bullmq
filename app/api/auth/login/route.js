@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import connection from "../../../../lib/redis";
 import { generateToken } from "../../../../lib/auth";
 import { logAudit } from "../../../../lib/audit";
+import loginQueue from "../../../../lib/loginQueue";
 
 export async function POST(request) {
   try {
@@ -74,6 +75,26 @@ export async function POST(request) {
       resourceId: userId,
       statusCode: 200,
     });
+
+    // Add login notification job to queue
+    try {
+      const forwarded = request.headers.get("x-forwarded-for");
+      const ip = forwarded ? forwarded.split(",")[0].trim() : request.headers.get("x-real-ip") || null;
+
+      await loginQueue.add("sendLoginNotification", {
+        email: user.email,
+        name: user.name,
+        ip,
+      }, {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      });
+    } catch (queueError) {
+      // Don't fail login if queue fails - just log the error
+      console.error("Failed to add login notification job:", queueError);
+    }
 
     return NextResponse.json({
       message: "Login successful",
