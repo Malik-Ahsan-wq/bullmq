@@ -3,6 +3,7 @@ import InviteModel from "../../../../models/Invite";
 import ProjectModel from "../../../../models/Project";
 import UserModel from "../../../../models/User";
 import ProjectMemberModel from "../../../../models/ProjectMember";
+import { logAudit } from "../../../../lib/audit";
 
 export async function GET(request, { params }) {
   try {
@@ -52,6 +53,14 @@ export async function GET(request, { params }) {
       projectId: invite.projectId,
       email: invite.email,
     }).lean();
+
+    await logAudit(request, {
+      action: "invite.viewed",
+      resourceType: "invite",
+      resourceId: invite._id,
+      details: { email: invite.email, projectId: invite.projectId },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       invite: {

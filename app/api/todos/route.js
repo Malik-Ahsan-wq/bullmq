@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connection from "../../../lib/redis";
 import { verifyToken } from "../../../lib/auth";
+import { logAudit } from "../../../lib/audit";
 
 function getUserFromRequest(request) {
   const authHeader = request.headers.get("authorization");
@@ -35,6 +36,15 @@ export async function GET(request) {
 
     todos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    await logAudit(request, {
+      userId: user.id,
+      email: user.email,
+      action: "legacy_todo.listed",
+      resourceType: "todo",
+      details: { count: todos.length },
+      statusCode: 200,
+    });
+
     return NextResponse.json({ todos });
   } catch (error) {
     console.error("Get todos error:", error);
@@ -54,6 +64,13 @@ export async function POST(request) {
 
     const { text } = await request.json();
     if (!text) {
+      await logAudit(request, {
+        userId: user.id,
+        email: user.email,
+        action: "legacy_todo.create.failed",
+        details: { reason: "missing_text" },
+        statusCode: 400,
+      });
       return NextResponse.json(
         { error: "Todo text is required" },
         { status: 400 }
@@ -72,6 +89,16 @@ export async function POST(request) {
     await connection.hset(`todo:${user.id}:${todoId}`, todo);
 
     await connection.sadd(`todos:${user.id}`, todoId.toString());
+
+    await logAudit(request, {
+      userId: user.id,
+      email: user.email,
+      action: "legacy_todo.created",
+      resourceType: "todo",
+      resourceId: todoId,
+      details: { text },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       message: "Todo created",
@@ -114,6 +141,16 @@ export async function PUT(request) {
 
     const updatedTodo = await connection.hgetall(`todo:${user.id}:${id}`);
 
+    await logAudit(request, {
+      userId: user.id,
+      email: user.email,
+      action: "legacy_todo.updated",
+      resourceType: "todo",
+      resourceId: id,
+      details: { text: updatedTodo.text, done: updatedTodo.done },
+      statusCode: 200,
+    });
+
     return NextResponse.json({
       message: "Todo updated",
       todo: {
@@ -153,8 +190,20 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
+    const todo = await connection.hgetall(`todo:${user.id}:${id}`);
+
     await connection.del(`todo:${user.id}:${id}`);
     await connection.srem(`todos:${user.id}`, id);
+
+    await logAudit(request, {
+      userId: user.id,
+      email: user.email,
+      action: "legacy_todo.deleted",
+      resourceType: "todo",
+      resourceId: id,
+      details: { text: todo?.text },
+      statusCode: 200,
+    });
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

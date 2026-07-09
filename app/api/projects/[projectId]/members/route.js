@@ -3,6 +3,7 @@ import { getUserFromRequest } from "../../../../../lib/getUserFromRequest";
 import UserModel from "../../../../../models/User";
 import ProjectModel from "../../../../../models/Project";
 import ProjectMemberModel from "../../../../../models/ProjectMember";
+import { logAudit } from "../../../../../lib/audit";
 
 export async function GET(request, { params }) {
   try {
@@ -53,6 +54,16 @@ export async function GET(request, { params }) {
         email: m.userId.email,
         role: m.role,
       }));
+
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "member.listed",
+      resourceType: "project",
+      resourceId: projectId,
+      details: { count: formattedMembers.length },
+      statusCode: 200,
+    });
 
     return NextResponse.json({ members: formattedMembers });
   } catch (error) {

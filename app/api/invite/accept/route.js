@@ -5,6 +5,7 @@ import UserModel from "../../../../models/User";
 import ProjectMemberModel from "../../../../models/ProjectMember";
 import TodoModel from "../../../../models/Todo";
 import ProjectStatsModel from "../../../../models/ProjectStats";
+import { logAudit } from "../../../../lib/audit";
 
 async function updateProjectStats(projectId) {
   try {
@@ -118,6 +119,19 @@ export async function POST(request) {
 
     await Invite.updateOne({ _id: invite._id }, { status: "accepted" });
     await updateProjectStats(invite.projectId);
+
+    await logAudit(request, {
+      email: invite.email,
+      action: "invite.accepted",
+      resourceType: "invite",
+      resourceId: invite._id,
+      details: {
+        projectId: invite.projectId,
+        projectName: project.name,
+        role: invite.role || "viewer",
+      },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       message: "Invite accepted successfully",

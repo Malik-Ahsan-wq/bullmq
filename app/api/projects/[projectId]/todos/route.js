@@ -7,6 +7,7 @@ import TodoModel from "../../../../../models/Todo";
 import ProjectStatsModel from "../../../../../models/ProjectStats";
 import deadlineQueue from "../../../../../lib/deadlineQueue";
 import connection from "../../../../../lib/redis";
+import { logAudit } from "../../../../../lib/audit";
 
 async function updateProjectStats(projectId) {
   try {
@@ -218,6 +219,16 @@ export async function GET(request, { params }) {
       ? { total: saved.total, completed: saved.completed, pending: saved.pending, overdue: saved.overdue, lastUpdated: saved.lastUpdated }
       : { total: 0, completed: 0, pending: 0, overdue: 0, lastUpdated: null };
 
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "todo.listed",
+      resourceType: "todo",
+      resourceId: projectId,
+      details: { projectId, count: formattedTodos.length, role },
+      statusCode: 200,
+    });
+
     return NextResponse.json({ todos: formattedTodos, userRole: role, stats });
   } catch (error) {
     console.error("Get project todos error:", error);
@@ -333,6 +344,21 @@ export async function POST(request, { params }) {
     }
 
     await updateProjectStats(projectId);
+
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "todo.created",
+      resourceType: "todo",
+      resourceId: todo._id,
+      details: {
+        projectId,
+        text: todo.text,
+        assignedTo: assignedToUser ? assignedToUser.email : null,
+        deadline: parsedDeadline ? parsedDeadline.toISOString() : null,
+      },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       message: "Todo created",
@@ -504,6 +530,22 @@ export async function PUT(request, { params }) {
 
     await updateProjectStats(projectId);
 
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "todo.updated",
+      resourceType: "todo",
+      resourceId: todo._id,
+      details: {
+        projectId,
+        text: todo.text,
+        done: todo.done,
+        assignedTo: todo.assignedToName || null,
+        deadline: todo.deadline ? new Date(todo.deadline).toISOString() : null,
+      },
+      statusCode: 200,
+    });
+
     return NextResponse.json({
       message: "Todo updated",
       todo: {
@@ -581,6 +623,16 @@ export async function DELETE(request, { params }) {
 
     await Todo.deleteOne({ _id: id });
     await updateProjectStats(projectId);
+
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "todo.deleted",
+      resourceType: "todo",
+      resourceId: id,
+      details: { projectId, text: todo.text },
+      statusCode: 200,
+    });
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

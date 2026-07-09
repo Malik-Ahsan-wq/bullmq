@@ -7,6 +7,7 @@ import ProjectModel from "../../../../../models/Project";
 import ProjectMemberModel from "../../../../../models/ProjectMember";
 import InviteModel from "../../../../../models/Invite";
 import connection from "../../../../../lib/redis";
+import { logAudit } from "../../../../../lib/audit";
 
 export async function POST(request, { params }) {
   try {
@@ -132,6 +133,21 @@ export async function POST(request, { params }) {
         backoff: { type: "exponential", delay: 2000 },
       }
     );
+
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "invite.sent",
+      resourceType: "invite",
+      resourceId: invite._id,
+      details: {
+        projectId,
+        inviteeEmail: email.toLowerCase(),
+        role: validRole,
+        projectName: project.name,
+      },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       message: "Invite sent successfully",

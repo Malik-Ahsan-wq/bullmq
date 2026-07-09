@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import emailQueue from "../../../lib/queue";
 import { verifyToken } from "../../../lib/auth";
+import { logAudit } from "../../../lib/audit";
 
 function getUserFromRequest(request) {
   const authHeader = request.headers.get("authorization");
@@ -20,6 +21,13 @@ export async function POST(request) {
 
     const { subject, message } = await request.json();
     if (!subject || !message) {
+      await logAudit(request, {
+        userId: user.id,
+        email: user.email,
+        action: "email.send.failed",
+        details: { reason: "missing_fields" },
+        statusCode: 400,
+      });
       return NextResponse.json(
         { error: "Subject and message are required" },
         { status: 400 }
@@ -42,6 +50,15 @@ export async function POST(request) {
         },
       }
     );
+
+    await logAudit(request, {
+      userId: user.id,
+      email: user.email,
+      action: "email.queued",
+      resourceType: "email",
+      details: { subject, jobId: job.id },
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       message: "Email job added to queue",

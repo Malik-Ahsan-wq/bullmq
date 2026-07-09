@@ -3,6 +3,7 @@ import { getUserFromRequest } from "../../../lib/getUserFromRequest";
 import UserModel from "../../../models/User";
 import ProjectModel from "../../../models/Project";
 import ProjectMemberModel from "../../../models/ProjectMember";
+import { logAudit } from "../../../lib/audit";
 
 export async function GET(request) {
   try {
@@ -33,6 +34,15 @@ export async function GET(request) {
       createdAt: m.projectId.createdAt,
     }));
 
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "project.listed",
+      resourceType: "project",
+      details: { count: projects.length },
+      statusCode: 200,
+    });
+
     return NextResponse.json({ projects });
   } catch (error) {
     console.error("Get projects error:", error);
@@ -52,6 +62,13 @@ export async function POST(request) {
 
     const { name, description } = await request.json();
     if (!name) {
+      await logAudit(request, {
+        userId: authUser.id,
+        email: authUser.email,
+        action: "project.create.failed",
+        details: { reason: "missing_name" },
+        statusCode: 400,
+      });
       return NextResponse.json(
         { error: "Project name is required" },
         { status: 400 }
@@ -81,6 +98,16 @@ export async function POST(request) {
       projectId: project._id,
       userId: user._id,
       role: "owner",
+    });
+
+    await logAudit(request, {
+      userId: authUser.id,
+      email: authUser.email,
+      action: "project.created",
+      resourceType: "project",
+      resourceId: project._id,
+      details: { name, description: description || "" },
+      statusCode: 200,
     });
 
     return NextResponse.json({
