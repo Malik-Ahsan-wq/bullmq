@@ -1,11 +1,23 @@
 require("dotenv").config({ path: __dirname + "/../.env.local" });
 
 const { Worker } = require("bullmq");
+const mongoose = require("mongoose");
 const connection = require("../lib/redis");
 const { sendLoginNotification } = require("../lib/email");
+const { sendPushNotification } = require("../lib/notificationService");
 const { createLogger } = require("../lib/logger");
 
 const log = createLogger("LoginWorker");
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/todo-app";
+
+async function connectMongo() {
+  if (mongoose.connection.readyState === 1) return;
+  await mongoose.connect(MONGO_URI, { bufferCommands: false });
+  log.info("Connected to MongoDB");
+}
+
+const UserSchema = new mongoose.Schema({ email: String, name: String, fcmToken: String }, { strict: false });
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const worker = new Worker(
   "loginQueue",
@@ -15,24 +27,30 @@ const worker = new Worker(
 
     log.info("Job received", { jobId: job.id, email, attempt: job.attemptsMade + 1 });
 
-    try {
-      log.info("Sending login notification email", { jobId: job.id, to: email });
+    await connectMongo();
 
-      const info = await sendLoginNotification({
-        email,
-        name,
-        loginTime: new Date(),
-        ip,
+    // Send email notification
+    const info = await sendLoginNotification({ email, name, loginTime: new Date(), ip });
+    log.info("Login notification email sent", { jobId: job.id, messageId: info.messageId });
+
+    // Send FCM push notification
+    const user = await User.findOne({ email }).lean();
+    if (user?.fcmToken) {
+      const loginTime = new Date().toLocaleString();
+      const valid = await sendPushNotification(user.fcmToken, {
+        title: "New Login Detected",
+        body: `Your account was accessed${ip ? ` from ${ip}` : ""} at ${loginTime}`,
+        data: { type: "login", ip: ip || "" },
       });
-
-      const duration = Date.now() - start;
-      log.info("Login notification sent", { jobId: job.id, messageId: info.messageId, durationMs: duration });
-
-      return { success: true, duration, email, messageId: info.messageId };
-    } catch (err) {
-      log.error("Failed to send login notification", { jobId: job.id, error: err.message });
-      throw err;
+      if (!valid) {
+        await User.updateOne({ email }, { fcmToken: null });
+        log.warn("Cleared invalid FCM token", { email });
+      }
     }
+
+    const duration = Date.now() - start;
+    log.info("Login job completed", { jobId: job.id, durationMs: duration });
+    return { success: true, duration, email, messageId: info.messageId };
   },
   {
     connection,

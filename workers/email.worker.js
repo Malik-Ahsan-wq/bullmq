@@ -1,11 +1,23 @@
 require("dotenv").config({ path: __dirname + "/../.env.local" });
 
 const { Worker } = require("bullmq");
+const mongoose = require("mongoose");
 const connection = require("../lib/redis");
 const { sendInviteEmail } = require("../lib/email");
+const { sendPushNotification } = require("../lib/notificationService");
 const { createLogger } = require("../lib/logger");
 
 const log = createLogger("EmailWorker");
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/todo-app";
+
+async function connectMongo() {
+  if (mongoose.connection.readyState === 1) return;
+  await mongoose.connect(MONGO_URI, { bufferCommands: false });
+  log.info("Connected to MongoDB");
+}
+
+const UserSchema = new mongoose.Schema({ email: String, fcmToken: String }, { strict: false });
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const worker = new Worker(
   "emailQueue",
@@ -17,32 +29,36 @@ const worker = new Worker(
     if (job.name === "sendInviteEmail") {
       const { email, projectName, inviterName, token } = job.data;
 
-      log.info("Sending invite email", { jobId: job.id, to: email, project: projectName, invitedBy: inviterName });
+      log.info("Sending invite email", { jobId: job.id, to: email, project: projectName });
 
-      try {
-        const info = await sendInviteEmail({ email, projectName, inviterName, token });
-        const duration = Date.now() - start;
+      const info = await sendInviteEmail({ email, projectName, inviterName, token });
+      const duration = Date.now() - start;
+      log.info("Invite email sent", { jobId: job.id, messageId: info.messageId, durationMs: duration });
 
-        log.info("Invite email sent", { jobId: job.id, messageId: info.messageId, durationMs: duration });
-
-        return { success: true, duration, email, messageId: info.messageId };
-      } catch (err) {
-        log.error("Failed to send invite email", { jobId: job.id, error: err.message });
-        throw err;
+      // Send FCM push notification
+      await connectMongo();
+      const user = await User.findOne({ email }).lean();
+      if (user?.fcmToken) {
+        const valid = await sendPushNotification(user.fcmToken, {
+          title: "You've been invited!",
+          body: `${inviterName} invited you to join "${projectName}"`,
+          data: { type: "invitation", projectName, inviterName, token },
+        });
+        if (!valid) {
+          await User.updateOne({ email }, { fcmToken: null });
+          log.warn("Cleared invalid FCM token", { email });
+        }
       }
+
+      return { success: true, duration, email, messageId: info.messageId };
     }
 
     // Generic email job
     const { email, subject, message } = job.data;
-
     log.info("Sending generic email", { jobId: job.id, to: email, subject });
-    log.debug("Email body", { message });
-
     await new Promise((resolve) => setTimeout(resolve, 3000));
-
     const duration = Date.now() - start;
     log.info("Generic email sent", { jobId: job.id, durationMs: duration });
-
     return { success: true, duration, email };
   },
   {

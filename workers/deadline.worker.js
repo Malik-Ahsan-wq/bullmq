@@ -4,6 +4,7 @@ const { Worker } = require("bullmq");
 const mongoose = require("mongoose");
 const connection = require("../lib/redis");
 const { sendDeadlineReminder } = require("../lib/email");
+const { sendPushNotification } = require("../lib/notificationService");
 const { createLogger } = require("../lib/logger");
 
 const log = createLogger("DeadlineWorker");
@@ -28,7 +29,10 @@ const TodoSchema = new mongoose.Schema(
   { strict: false }
 );
 
-const Todo = mongoose.model("Todo", TodoSchema);
+const UserSchema = new mongoose.Schema({ email: String, fcmToken: String }, { strict: false });
+
+const Todo = mongoose.models.Todo || mongoose.model("Todo", TodoSchema);
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 const worker = new Worker(
   "deadlineQueue",
@@ -38,45 +42,57 @@ const worker = new Worker(
 
     log.info("Job received", { jobId: job.id, taskName, to: email, attempt: job.attemptsMade + 1 });
 
-    try {
-      await connectMongo();
+    await connectMongo();
 
-      const todo = await Todo.findById(todoId).lean();
+    const todo = await Todo.findById(todoId).lean();
 
-      if (!todo) {
-        log.warn("Todo no longer exists — skipping", { jobId: job.id, todoId });
-        return { success: true, skipped: true, reason: "todo_deleted" };
-      }
-
-      if (todo.done) {
-        log.warn("Todo already completed — skipping", { jobId: job.id, todoId });
-        return { success: true, skipped: true, reason: "todo_completed" };
-      }
-
-      if (!todo.deadline) {
-        log.warn("Todo deadline removed — skipping", { jobId: job.id, todoId });
-        return { success: true, skipped: true, reason: "deadline_removed" };
-      }
-
-      log.info("Sending deadline reminder email", { jobId: job.id, to: email, project: projectName });
-
-      const info = await sendDeadlineReminder({
-        email,
-        taskName,
-        projectName,
-        deadline: todo.deadline,
-        assigneeName,
-        creatorName,
-      });
-
-      const duration = Date.now() - start;
-      log.info("Reminder email sent", { jobId: job.id, messageId: info.messageId, durationMs: duration });
-
-      return { success: true, duration, email, messageId: info.messageId };
-    } catch (err) {
-      log.error("Failed to send reminder email", { jobId: job.id, error: err.message });
-      throw err;
+    if (!todo) {
+      log.warn("Todo no longer exists — skipping", { jobId: job.id, todoId });
+      return { success: true, skipped: true, reason: "todo_deleted" };
     }
+    if (todo.done) {
+      log.warn("Todo already completed — skipping", { jobId: job.id, todoId });
+      return { success: true, skipped: true, reason: "todo_completed" };
+    }
+    if (!todo.deadline) {
+      log.warn("Todo deadline removed — skipping", { jobId: job.id, todoId });
+      return { success: true, skipped: true, reason: "deadline_removed" };
+    }
+
+    const isOverdue = new Date(todo.deadline) < new Date();
+    const notifTitle = isOverdue ? "Task Overdue!" : "Deadline Reminder";
+    const notifBody = isOverdue
+      ? `"${taskName}" in ${projectName || "your project"} is overdue.`
+      : `"${taskName}" in ${projectName || "your project"} is due now.`;
+
+    // Send email
+    const info = await sendDeadlineReminder({
+      email,
+      taskName,
+      projectName,
+      deadline: todo.deadline,
+      assigneeName,
+      creatorName,
+    });
+    log.info("Deadline reminder email sent", { jobId: job.id, messageId: info.messageId });
+
+    // Send FCM push notification
+    const user = await User.findOne({ email }).lean();
+    if (user?.fcmToken) {
+      const valid = await sendPushNotification(user.fcmToken, {
+        title: notifTitle,
+        body: notifBody,
+        data: { type: isOverdue ? "deadline_overdue" : "deadline_reminder", todoId },
+      });
+      if (!valid) {
+        await User.updateOne({ email }, { fcmToken: null });
+        log.warn("Cleared invalid FCM token", { email });
+      }
+    }
+
+    const duration = Date.now() - start;
+    log.info("Deadline job completed", { jobId: job.id, durationMs: duration });
+    return { success: true, duration, email, messageId: info.messageId };
   },
   { connection, concurrency: 3 }
 );

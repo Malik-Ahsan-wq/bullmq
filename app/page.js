@@ -32,11 +32,9 @@ export default function AuthPage() {
         return;
       }
 
-      // Store token and user in localStorage
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Redirect to todos page
       router.push("/todos");
     } catch (err) {
       setError("Network error. Please try again.");
