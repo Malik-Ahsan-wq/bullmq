@@ -53,8 +53,7 @@ TodoSchema.index({ projectId: 1, createdAt: -1 });
 
 async function TodoModel() {
   await connectDB();
-  delete mongoose.models.Todo;
-  return mongoose.model("Todo", TodoSchema);
+  return mongoose.models.Todo || mongoose.model("Todo", TodoSchema);
 }
 
 export default TodoModel;

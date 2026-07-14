@@ -167,30 +167,21 @@ export async function GET(request, { params }) {
     const Todo = await TodoModel();
     const role = access.membership.role;
 
-    let todos;
-    if (role === "viewer") {
-      todos = await Todo.find({ projectId })
-        .populate("assignedTo", "name email")
-        .populate("assignedBy", "name email")
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
-        .lean();
-    } else {
-      todos = await Todo.find({
-        projectId,
-        $or: [
-          { assignedTo: null },
-          { assignedTo: access.user._id },
-          { createdBy: access.user._id },
-          { assignedBy: access.user._id },
-        ],
-      })
-        .populate("assignedTo", "name email")
-        .populate("assignedBy", "name email")
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
-        .lean();
-    }
+    // Each user only sees tasks assigned to them, or unassigned tasks they created
+    const todoQuery = {
+      projectId,
+      $or: [
+        { assignedTo: access.user._id },
+        { assignedTo: null, createdBy: access.user._id },
+      ],
+    };
+
+    const todos = await Todo.find(todoQuery)
+      .populate("assignedTo", "name email")
+      .populate("assignedBy", "name email")
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
 
     const formattedTodos = todos.map((t) => ({
       id: t._id,

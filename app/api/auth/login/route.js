@@ -4,6 +4,7 @@ import connection from "../../../../lib/redis";
 import { generateToken } from "../../../../lib/auth";
 import { logAudit } from "../../../../lib/audit";
 import loginQueue from "../../../../lib/loginQueue";
+import UserModel from "../../../../models/User";
 
 export async function POST(request) {
   try {
@@ -66,6 +67,18 @@ export async function POST(request) {
     }
 
     const token = generateToken({ id: parseInt(userId), email: user.email });
+
+    // Ensure user exists in MongoDB (sync on login for existing users)
+    try {
+      const User = await UserModel();
+      await User.findOneAndUpdate(
+        { email: user.email },
+        { name: user.name, email: user.email, redisUserId: parseInt(userId) },
+        { upsert: true, new: true }
+      );
+    } catch (mongoErr) {
+      console.error("MongoDB user sync error:", mongoErr);
+    }
 
     await logAudit(request, {
       userId,

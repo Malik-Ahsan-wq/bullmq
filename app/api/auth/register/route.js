@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import connection from "../../../../lib/redis";
 import { generateToken } from "../../../../lib/auth";
 import { logAudit } from "../../../../lib/audit";
+import UserModel from "../../../../models/User";
 
 export async function POST(request) {
   try {
@@ -46,6 +47,18 @@ export async function POST(request) {
     });
 
     await connection.set(`user:email:${email}`, userId.toString());
+
+    // Sync user to MongoDB so they can use projects and chat
+    try {
+      const User = await UserModel();
+      await User.findOneAndUpdate(
+        { email },
+        { name, email, redisUserId: userId },
+        { upsert: true, new: true }
+      );
+    } catch (mongoErr) {
+      console.error("MongoDB user sync error:", mongoErr);
+    }
 
     const token = generateToken({ id: userId, email });
 

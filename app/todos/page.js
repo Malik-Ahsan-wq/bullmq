@@ -1,7 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const ChatPanel = dynamic(() => import("../components/ChatPanel"), { ssr: false });
+
+function ChatToast({ toasts, onClose }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="chat-toast-container">
+      {toasts.map((t) => (
+        <div key={t.id} className={`chat-toast${t.exiting ? " chat-toast-exit" : ""}`}>
+          <div className="chat-toast-avatar">{t.senderName?.[0]?.toUpperCase() || "?"}</div>
+          <div className="chat-toast-body">
+            <div className="chat-toast-sender">{t.senderName}</div>
+            <div className="chat-toast-task">{t.taskName}</div>
+            <div className="chat-toast-preview">{t.preview}</div>
+          </div>
+          <button className="chat-toast-close" onClick={() => onClose(t.id)}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ConfirmModal({ open, icon, title, message, confirmLabel, confirmClass, onConfirm, onCancel }) {
   if (!open) return null;
@@ -54,7 +76,31 @@ export default function TodosPage() {
   const [auditPagination, setAuditPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [auditFilter, setAuditFilter] = useState({ action: "", resourceType: "", email: "" });
   const [unreadAuditCount, setUnreadAuditCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [taskUnreadMap, setTaskUnreadMap] = useState({});
+  const [toasts, setToasts] = useState([]);
   const [confirm, setConfirm] = useState({ open: false, icon: "", title: "", message: "", confirmLabel: "", confirmClass: "", onConfirm: null });
+  const [chatTask, setChatTask] = useState(null);
+  const activeTabRef = useRef(activeTab);
+  const chatTaskRef  = useRef(chatTask);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { chatTaskRef.current  = chatTask;  }, [chatTask]);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.map((t) => t.id === id ? { ...t, exiting: true } : t));
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 350);
+  }, []);
+
+  const handleNotification = useCallback((notif) => {
+    // Don't toast if user is already viewing that task's chat
+    if (activeTabRef.current === "chat" && chatTaskRef.current?.id === notif.taskId) return;
+    const id = `${notif.messageId}-${Date.now()}`;
+    setToasts((prev) => [...prev.slice(-3), { ...notif, id }]);
+    setTimeout(() => dismissToast(id), 5000);
+    // Increment per-task unread
+    setTaskUnreadMap((prev) => ({ ...prev, [notif.taskId]: (prev[notif.taskId] || 0) + 1 }));
+    setUnreadChatCount((n) => n + 1);
+  }, [dismissToast]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -391,6 +437,11 @@ export default function TodosPage() {
               {unreadAuditCount > 0 && <span className="notif-badge">{unreadAuditCount > 99 ? "99+" : unreadAuditCount}</span>}
             </button>
           )}
+          <button className={`tab${activeTab === "chat" ? " active" : ""}`} onClick={() => { setActiveTab("chat"); setUnreadChatCount(0); }}>
+            💬 Chat
+            {unreadChatCount > 0 && <span className="notif-badge">{unreadChatCount > 99 ? "99+" : unreadChatCount}</span>}
+          </button>
+          <ChatToast toasts={toasts} onClose={dismissToast} />
         </div>
 
         {activeTab === "tasks" && (
@@ -517,6 +568,45 @@ export default function TodosPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "chat" && (
+          <div className="chat-tab-layout">
+            <div className="chat-task-list">
+              <div className="chat-task-list-header">Conversations</div>
+              {todos.length === 0 ? (
+                <div className="chat-task-empty">No tasks in this project.</div>
+              ) : (
+                todos.map((t) => {
+                  const tUnread = taskUnreadMap[t.id] || 0;
+                  return (
+                    <button
+                      key={t.id}
+                      className={`chat-task-item${chatTask?.id === t.id ? " active" : ""}`}
+                      onClick={() => {
+                        setChatTask(t);
+                        setTaskUnreadMap((prev) => { const n = { ...prev }; delete n[t.id]; return n; });
+                        setUnreadChatCount((c) => Math.max(0, c - (taskUnreadMap[t.id] || 0)));
+                      }}
+                    >
+                      <span className={`chat-task-dot${t.done ? " done" : ""}`} />
+                      <span className="chat-task-item-text">{t.text}</span>
+                      {tUnread > 0 && <span className="chat-task-unread">{tUnread > 99 ? "99+" : tUnread}</span>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="chat-panel-wrap">
+              <ChatPanel
+                task={chatTask}
+                user={user}
+                isActive={activeTab === "chat"}
+                onUnreadChange={(n) => { if (activeTab !== "chat") setUnreadChatCount(n); }}
+                onNotification={handleNotification}
+              />
             </div>
           </div>
         )}

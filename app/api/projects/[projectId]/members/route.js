@@ -43,7 +43,7 @@ export async function GET(request, { params }) {
     }
 
     const members = await ProjectMember.find({ projectId })
-      .populate("userId", "name email")
+      .populate("userId", "name email avatar lastSeen")
       .lean();
 
     const formattedMembers = members
@@ -53,6 +53,8 @@ export async function GET(request, { params }) {
         name: m.userId.name,
         email: m.userId.email,
         role: m.role,
+        avatar: m.userId.avatar || null,
+        lastSeen: m.userId.lastSeen || null,
       }));
 
     await logAudit(request, {

@@ -64,7 +64,14 @@ export default function FcmToast() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    initFcm(token);
+    // Defer Firebase init until browser is idle — don't block page startup
+    const id = requestIdleCallback
+      ? requestIdleCallback(() => initFcm(token), { timeout: 3000 })
+      : setTimeout(() => initFcm(token), 2000);
+    return () => {
+      if (requestIdleCallback) cancelIdleCallback(id);
+      else clearTimeout(id);
+    };
   }, []);
 
   if (!toasts.length) return null;

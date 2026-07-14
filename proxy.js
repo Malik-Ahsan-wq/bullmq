@@ -23,7 +23,7 @@ export function proxy(request) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
-      "connect-src 'self' https://*.googleapis.com https://*.firebase.com https://*.firebaseio.com",
+      "connect-src 'self' https://*.googleapis.com https://*.firebase.com https://*.firebaseio.com http://localhost:3001 ws://localhost:3001 wss://localhost:3001",
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "form-action 'self'",
@@ -42,5 +42,11 @@ export function proxy(request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Skip: _next/static, _next/image, favicon, api routes that don't need CSP headers
+     * Only run middleware on page routes and API routes
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf)$).*)",
+  ],
 };
